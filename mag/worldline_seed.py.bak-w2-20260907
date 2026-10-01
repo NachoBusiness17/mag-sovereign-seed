@@ -1,0 +1,534 @@
+"""worldline_seed — W1 death rite v2: emit + verify THE WORLDLINE SEED.
+
+Card: watch/WORLDLINE_SEED_20260907.md. The seed is the portable manifest of a
+closing session's worldline: genome + invariants + organs + record + position.
+Falsifier (card, W1 spec): missing any slab = malformed. Verify recomputes every
+sha against on-disk truth; sha mismatch / missing slab / bad seed_hash = REJECT
+(exit 2); chain-tip drift vs the live chain = WARNING, not a reject (the chain
+is append-only and the world moves on after a death).
+
+THE FIVE SLABS
+  genome     path+sha256 of the workspace AGENTS.md + names of available skills
+             (names only, never contents) from the three skill roots.
+  invariants path+sha256 of MEMORY.md + curator_list. CURATION RULE (honest v1):
+             "the curated front = what the index names" — walk the index's entry
+             lines (`- [Title](file.md)`) in INDEX ORDER, resolve each filename
+             against the memory dir, keep files that exist, cap 40, each entry
+             recorded as {name, path, sha256} (path+sha+name only, no contents).
+             Unresolvable entries are counted (skipped_unresolved), never guessed.
+  organs     pointers only, NO SECRETS: cage MCP config path+sha if a stable
+             config file exists at a known candidate path, else the topology-card
+             note with config_path null. Explicit "secrets": "none-captured".
+  record     trajectory tape ref (row count + tip step_hash) + verkle knot ref
+             (row count + tip leaf_hash) + selector block: try mag.preload_selector
+             (F-W5 instrument, label PROXY); if importable with a usable ordering
+             entrypoint -> {"mode": "trajectory-conditioned", "top_refs": ...}
+             (ids + scores only), else {"mode": "naive", "reason": ...}.
+             Selector absence NEVER fails emission.
+  position   chain tip (leaf_hash + ts, last line of the verkle chain) + the
+             seed's own minute span (creation minute; v1 = point span) +
+             prev_seed (null in v1 — no lineage chain of seeds yet).
+
+seed_hash: sha256 over the canonical manifest EXCLUDING seed_hash (sort_keys,
+ensure_ascii=False), first 16 hex chars. consent: replication operator-gated,
+egress none — a provenance-chained symbiote, per card door #2.
+
+SECRETS LAW: only the specific files named in this module are read; only hashes
+and names are captured, never contents; .env / credential stores / key material
+are never opened. The mcp config candidates are hashed (structure proof), never
+embedded.
+
+CLI:
+  python -m mag.worldline_seed emit --session-id <id> [--out DIR]
+  python -m mag.worldline_seed verify <seed.json>
+$0-local: files only, no cloud, no docker.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parent.parent
+AGENTS_MD = ROOT.parent / "AGENTS.md"
+MEMORY_DIR = Path.home() / ".zcode" / "cli" / "memories" / "projects" / \
+    "projects-0fb5e3041b59db21" / "memory"
+MEMORY_MD = MEMORY_DIR / "MEMORY.md"
+CHAIN = ROOT / "memory" / "biography" / "verkle_chain.jsonl"
+TAPE = ROOT / "memory" / "runs" / "trajectory" / "steps.jsonl"
+DEFAULT_OUT = ROOT / "memory" / "worldline"
+SKILL_ROOTS = {
+    "workspace": ROOT / ".agents" / "skills",
+    "user-agents": Path.home() / ".agents" / "skills",
+    "user-zcode": Path.home() / ".zcode" / "skills",
+}
+MCP_CONFIG_CANDIDATES = (
+    ROOT / ".mcp.json",
+    ROOT / "mcp.json",
+    ROOT / ".agents" / "mcp.json",
+    ROOT / "configs" / "mcp.json",
+)
+MCP_TOPOLOGY_NOTE = ("senses live in the cage — topology card "
+                     "watch/SELF_STEAL_MCP_TOPOLOGY_20260904.md")
+CURATOR_CAP = 40
+SELECTOR_TOP = 10
+SLABS = ("genome", "invariants", "organs", "record", "position")
+ENTRY_RE = re.compile(r"^- \[[^\]]+\]\(([^)]+\.md)\)", re.M)
+SCHEMA_VERSION = 1
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _canonical(manifest: dict[str, Any]) -> str:
+    return json.dumps(manifest, sort_keys=True, ensure_ascii=False)
+
+
+def _seed_hash(manifest: dict[str, Any]) -> str:
+    core = {k: v for k, v in manifest.items() if k != "seed_hash"}
+    return hashlib.sha256(_canonical(core).encode("utf-8")).hexdigest()[:16]
+
+
+def _pointer(path: Path) -> dict[str, Any]:
+    return {"path": path.resolve().as_posix(), "sha256": _sha256_file(path)}
+
+
+def _genome_slab() -> dict[str, Any]:
+    skills: dict[str, list[str]] = {}
+    for source, root in SKILL_ROOTS.items():
+        if root.is_dir():
+            names = sorted(p.name for p in root.iterdir()
+                           if p.is_dir() and (p / "SKILL.md").is_file())
+            if names:
+                skills[source] = names
+    flat = sorted({n for names in skills.values() for n in names})
+    return {
+        "agents_md": _pointer(AGENTS_MD),
+        "skills": flat,
+        "skills_by_source": skills,
+        "skill_count": len(flat),
+    }
+
+
+def _curator_list() -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Curation rule (v1, see module docstring): the index's own first entries,
+    in index order, resolved to on-disk files, capped."""
+    entries: list[dict[str, Any]] = []
+    seen = 0
+    if MEMORY_MD.is_file():
+        for match in ENTRY_RE.finditer(MEMORY_MD.read_text(encoding="utf-8",
+                                                           errors="replace")):
+            if len(entries) >= CURATOR_CAP:
+                break
+            seen += 1
+            fname = match.group(1)
+            path = MEMORY_DIR / fname
+            sha = _sha256_file(path)
+            if sha is None:
+                continue  # unresolved/unreadable: counted, never guessed
+            entries.append({"name": fname.removesuffix(".md"),
+                            "path": path.resolve().as_posix(),
+                            "sha256": sha})
+    stats = {"index_entries_seen": seen, "resolved": len(entries),
+             "skipped_unresolved": seen - len(entries)}
+    return entries, stats
+
+
+def _invariants_slab() -> dict[str, Any]:
+    curators, stats = _curator_list()
+    return {
+        "memory_md": _pointer(MEMORY_MD),
+        "curator_rule": ("v1: the curated front = what the index names — index "
+                         "entry order, resolved files only, cap 40, path+sha+name"),
+        "curator_list": curators,
+        "curator_stats": stats,
+    }
+
+
+def _organs_slab() -> dict[str, Any]:
+    config = None
+    for cand in MCP_CONFIG_CANDIDATES:
+        if cand.is_file():
+            config = _pointer(cand)
+            config["source"] = "first stable candidate"
+            break
+    if config is None:
+        config = {"note": MCP_TOPOLOGY_NOTE, "config_path": None}
+    return {"mcp_config": config, "secrets": "none-captured"}
+
+
+def _tape_ref() -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    if TAPE.is_file():
+        for ln in TAPE.read_text(encoding="utf-8", errors="replace").splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                rows.append(json.loads(ln))
+            except json.JSONDecodeError:
+                continue
+    tip = next((r.get("step_hash") for r in reversed(rows)
+                if isinstance(r, dict) and r.get("step_hash")), None)
+    ref = {"path": TAPE.resolve().as_posix(), "rows": len(rows), "tip_step_hash": tip}
+    try:  # integrity verdict from the tape's own verify logic (optional garnish)
+        from mag import bash_local as bl
+        ok, msg = bl.verify()
+        ref["verify_ok"] = bool(ok)
+        ref["verify_msg"] = msg[:200]
+    except Exception as exc:  # noqa: BLE001 — garnish only
+        ref["verify_ok"] = None
+        ref["verify_msg"] = f"verify unavailable: {str(exc)[:120]}"
+    return ref
+
+
+def _knot_ref() -> dict[str, Any]:
+    last: dict[str, Any] | None = None
+    n = 0
+    if CHAIN.is_file():
+        for ln in CHAIN.read_text(encoding="utf-8", errors="replace").splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            n += 1
+            try:
+                last = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+    return {"path": CHAIN.resolve().as_posix(), "rows": n,
+            "tip_leaf_hash": (last or {}).get("leaf_hash"),
+            "tip_ts": (last or {}).get("ts")}
+
+
+def _selector_block() -> dict[str, Any]:
+    """trajectory-conditioned refs via the F-W5 selector — import-fail-safe."""
+    try:
+        from mag.preload_selector import load_blocks, order_blocks  # type: ignore
+        if not (callable(load_blocks) and callable(order_blocks)):
+            raise AttributeError("no usable ordering entrypoint")
+        ranked = order_blocks(load_blocks())
+        return {
+            "mode": "trajectory-conditioned",
+            "selector": "mag.preload_selector.order_blocks(load_blocks())",
+            "label": "PROXY",
+            "blocks_total": len(ranked),
+            "top_refs": [{"id": b.get("id"), "score": b.get("score")}
+                         for b in ranked[:SELECTOR_TOP]],
+        }
+    except Exception as exc:  # noqa: BLE001 — NEVER fail emission on selector
+        return {"mode": "naive",
+                "reason": f"selector not usable: {type(exc).__name__}: "
+                          f"{str(exc)[:120]}"}
+
+
+def _record_slab() -> dict[str, Any]:
+    try:  # second belt: even a raising selector block never fails emission
+        sel = _selector_block()
+    except Exception as exc:  # noqa: BLE001
+        sel = {"mode": "naive",
+               "reason": f"selector raised: {type(exc).__name__}: {str(exc)[:120]}"}
+    return {"tape_ref": _tape_ref(), "knot_ref": _knot_ref(), "selector": sel}
+
+
+def _position_slab(created: datetime) -> dict[str, Any]:
+    tip = _knot_ref()
+    minute = created.strftime("%Y-%m-%dT%H:%M")
+    return {"chain_tip": {"leaf_hash": tip["tip_leaf_hash"], "ts": tip["tip_ts"]},
+            "minute_span": {"start_minute": minute, "end_minute": minute,
+                            "unix_minute": str(int(created.timestamp() // 60))},
+            "prev_seed": None}
+
+
+def emit(session_id: str, out_dir: Path | None = None) -> Path:
+    """Compile + write the seed; returns the seed path. Never captures contents."""
+    created = _now()
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", session_id or "unnamed")
+    manifest: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "worldline_seed",
+        "created_utc": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "session_id": session_id,
+        "slabs": {
+            "genome": _genome_slab(),
+            "invariants": _invariants_slab(),
+            "organs": _organs_slab(),
+            "record": _record_slab(),
+            "position": _position_slab(created),
+        },
+        "consent": {"replication": "operator-gated", "egress": "none"},
+    }
+    manifest["seed_hash"] = _seed_hash(manifest)
+    dest = (out_dir or (DEFAULT_OUT / safe))
+    dest.mkdir(parents=True, exist_ok=True)
+    out = dest / "SEED.json"
+    out.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    print(f"WORLDLINE SEED emitted: {out}")
+    print(f"seed_hash: {manifest['seed_hash']}  (session {session_id})")
+    return out
+
+
+# ---------------------------------------------------------------- verify
+
+def _fail(checks: list[list[Any]], slab: str, name: str, detail: str) -> None:
+    checks.append([slab, name, "FAIL", detail])
+
+
+def _ok(checks: list[list[Any]], slab: str, name: str, detail: str) -> None:
+    checks.append([slab, name, "PASS", detail])
+
+
+def _warn(checks: list[list[Any]], slab: str, name: str, detail: str) -> None:
+    checks.append([slab, name, "WARN", detail])
+
+
+def _check_sha(checks: list[list[Any]], slab: str, label: str,
+               pointer: dict[str, Any]) -> None:
+    path_s = pointer.get("path")
+    recorded = pointer.get("sha256")
+    if not path_s or not recorded:
+        _fail(checks, slab, label, "missing path or sha256 in pointer")
+        return
+    path = Path(path_s)
+    if not path.is_file():
+        _fail(checks, slab, label, f"file missing on disk: {path_s}")
+        return
+    live = _sha256_file(path)
+    if live != recorded:
+        _fail(checks, slab, label, f"SHA MISMATCH recorded={recorded[:16]} live={live[:16] if live else None}")
+    else:
+        _ok(checks, slab, label, f"sha ok {recorded[:16]}")
+
+
+def _check_growing(checks: list[list[Any]], slab: str, label: str, path_s: str,
+                   tip_field: str, tip: str | None, needle_field: str,
+                   recorded_rows: int, live_rows: int) -> None:
+    """Append-only file check: recorded tip must still exist in the live file;
+    growth beyond the recorded count is honest drift (note), disappearance is
+    provenance destruction (REJECT)."""
+    path = Path(path_s)
+    if not path.is_file():
+        _fail(checks, slab, label, f"file missing on disk: {path_s}")
+        return
+    present = False
+    for ln in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            row = json.loads(ln)
+        except json.JSONDecodeError:
+            continue  # repo files are data: malformed lines are skipped
+        if isinstance(row, dict) and row.get(needle_field) == tip:
+            present = True
+            break
+    if not present:
+        _fail(checks, slab, label,
+              f"recorded tip {str(tip)[:16]} NOT FOUND in live file (rewritten/truncated)")
+        return
+    if live_rows < recorded_rows:
+        _fail(checks, slab, label,
+              f"row count SHRANK: recorded {recorded_rows} live {live_rows}")
+        return
+    if live_rows > recorded_rows:
+        _warn(checks, slab, label,
+              f"grew since seed: recorded {recorded_rows} rows -> live {live_rows}; "
+              f"tip {str(tip)[:16]} still present (append-only, honest)")
+    else:
+        _ok(checks, slab, label, f"{recorded_rows} rows, tip {str(tip)[:16]} present")
+
+
+def _rows_and_tip(path: Path, tip_field: str) -> tuple[int, str | None]:
+    n, tip, last = 0, None, None
+    for ln in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        n += 1
+        try:
+            last = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(last, dict) and last.get(tip_field):
+            tip = last[tip_field]
+    return n, tip
+
+
+def verify(seed_path: Path) -> int:
+    """Recompute everything against on-disk truth. Exit 0 pass / 2 reject."""
+    try:
+        manifest = json.loads(Path(seed_path).read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"REJECTED — seed unreadable: {exc}")
+        return 2
+    checks: list[list[Any]] = []
+
+    if manifest.get("kind") != "worldline_seed":
+        _fail(checks, "schema", "kind", f"expected worldline_seed, got {manifest.get('kind')!r}")
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        _fail(checks, "schema", "schema_version",
+              f"expected {SCHEMA_VERSION}, got {manifest.get('schema_version')!r}")
+
+    slabs: dict[str, Any] = manifest.get("slabs") or {}
+    for name in SLABS:
+        if name not in slabs or not isinstance(slabs.get(name), dict) or not slabs[name]:
+            _fail(checks, name, "present", "MISSING SLAB = malformed (card falsifier)")
+    if any(c[2] == "FAIL" for c in checks):
+        _print_table(checks, manifest, None)
+        print("VERDICT: REJECTED (malformed — missing slab)")
+        return 2
+
+    # seed_hash integrity FIRST among content checks (any manifest edit breaks it)
+    recorded_hash = manifest.get("seed_hash")
+    live_hash = _seed_hash(manifest)
+    if recorded_hash != live_hash:
+        _fail(checks, "seed_hash", "integrity",
+              f"RECORDED {recorded_hash} != RECOMPUTED {live_hash} — manifest edited")
+    else:
+        _ok(checks, "seed_hash", "integrity", recorded_hash)
+
+    g, inv, org, rec, pos = (slabs[s] for s in SLABS)
+
+    # genome
+    _check_sha(checks, "genome", "agents_md", g.get("agents_md") or {})
+    if g.get("skills"):
+        _ok(checks, "genome", "skills", f"{g.get('skill_count', len(g['skills']))} names "
+                                        f"(sources: {', '.join(g.get('skills_by_source') or {})})")
+    else:
+        _fail(checks, "genome", "skills", "empty")
+
+    # invariants
+    _check_sha(checks, "invariants", "memory_md", inv.get("memory_md") or {})
+    curators = inv.get("curator_list") or []
+    if not curators:
+        _fail(checks, "invariants", "curator_list", "empty")
+    else:
+        bad: list[str] = []
+        for e in curators:
+            path_s, recorded = e.get("path"), e.get("sha256")
+            live = _sha256_file(Path(path_s)) if (path_s and recorded) else None
+            if live != recorded:
+                bad.append(str(e.get("name", "?")))
+        if bad:
+            _fail(checks, "invariants", "curator_list",
+                  f"{len(curators) - len(bad)}/{len(curators)} curator shas ok, "
+                  f"{len(bad)} MISMATCHED (first: {', '.join(bad[:5])})")
+        else:
+            _ok(checks, "invariants", "curator_list",
+                f"{len(curators)}/{len(curators)} curator shas ok")
+
+    # organs
+    secrets = org.get("secrets")
+    if secrets == "none-captured":
+        _ok(checks, "organs", "secrets", "none-captured (law held)")
+    else:
+        _fail(checks, "organs", "secrets", f"expected 'none-captured', got {secrets!r}")
+    mcp = org.get("mcp_config") or {}
+    if mcp.get("path"):
+        _check_sha(checks, "organs", "mcp_config", mcp)
+    elif mcp.get("config_path") is None and mcp.get("note"):
+        _ok(checks, "organs", "mcp_config", "no stable config captured — topology note carried (by design)")
+    else:
+        _fail(checks, "organs", "mcp_config", "neither pointer nor documented absence")
+
+    # record
+    tape, knot = rec.get("tape_ref") or {}, rec.get("knot_ref") or {}
+    sel = rec.get("selector") or {}
+    if tape.get("path") and tape.get("tip_step_hash"):
+        live_rows, _ = _rows_and_tip(Path(tape["path"]), "step_hash")
+        _check_growing(checks, "record", "tape_ref", tape["path"],
+                       "step_hash", tape["tip_step_hash"], "step_hash",
+                       tape.get("rows", -1), live_rows)
+    else:
+        _fail(checks, "record", "tape_ref", "missing path or tip_step_hash")
+    if knot.get("path") and knot.get("tip_leaf_hash"):
+        live_rows, _ = _rows_and_tip(Path(knot["path"]), "leaf_hash")
+        _check_growing(checks, "record", "knot_ref", knot["path"],
+                       "leaf_hash", knot["tip_leaf_hash"], "leaf_hash",
+                       knot.get("rows", -1), live_rows)
+    else:
+        _fail(checks, "record", "knot_ref", "missing path or tip_leaf_hash")
+    if sel.get("mode") == "trajectory-conditioned":
+        _ok(checks, "record", "selector",
+            f"trajectory-conditioned, top {len(sel.get('top_refs') or [])} refs (PROXY)")
+    elif sel.get("mode") == "naive":
+        _ok(checks, "record", "selector", f"naive — {sel.get('reason', 'unspecified')}")
+    else:
+        _fail(checks, "record", "selector", "missing selector block")
+
+    # position
+    ct = pos.get("chain_tip") or {}
+    if not ct.get("leaf_hash"):
+        _fail(checks, "position", "chain_tip", "missing leaf_hash")
+    elif CHAIN.is_file():
+        _, live_tip = _rows_and_tip(CHAIN, "leaf_hash")
+        if live_tip != ct["leaf_hash"]:
+            _warn(checks, "position", "chain_tip",
+                  f"DRIFT: live tip {str(live_tip)[:16]} != seed tip "
+                  f"{ct['leaf_hash'][:16]} — chain moved on after death (WARNING, not reject)")
+        else:
+            _ok(checks, "position", "chain_tip", f"{ct['leaf_hash'][:16]} matches live last line")
+    else:
+        _fail(checks, "position", "chain_tip", f"live chain missing at {CHAIN}")
+    if pos.get("minute_span"):
+        _ok(checks, "position", "minute_span", str(pos["minute_span"].get("start_minute")))
+    else:
+        _fail(checks, "position", "minute_span", "missing")
+
+    hard_fail = any(c[2] == "FAIL" for c in checks)
+    _print_table(checks, manifest, recorded_hash)
+    if hard_fail:
+        print("VERDICT: REJECTED")
+        return 2
+    print("VERDICT: PASS" + (" (with warnings)" if any(c[2] == "WARN" for c in checks) else ""))
+    return 0
+
+
+def _print_table(checks: list[list[Any]], manifest: dict[str, Any],
+                 seed_hash: str | None) -> None:
+    print(f"seed: {manifest.get('session_id')} @ {manifest.get('created_utc')}  "
+          f"seed_hash {seed_hash}")
+    width = max(len(c[1]) for c in checks) if checks else 10
+    cur: str | None = None
+    for slab, name, status, detail in checks:
+        if slab != cur:
+            print(f"-- {slab}")
+            cur = slab
+        print(f"   [{status:^4}] {name.ljust(width)}  {detail}")
+
+
+def main() -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+    ap = argparse.ArgumentParser(prog="mag.worldline_seed",
+                                 description="W1 death rite v2: THE WORLDLINE SEED")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p_e = sub.add_parser("emit", help="emit a seed for a session id")
+    p_e.add_argument("--session-id", required=True)
+    p_e.add_argument("--out", default=None, help="output DIR (default memory/worldline/<session_id>)")
+    p_v = sub.add_parser("verify", help="verify a seed against on-disk truth")
+    p_v.add_argument("seed", help="path to SEED.json")
+    args = ap.parse_args()
+    if args.cmd == "emit":
+        emit(args.session_id, Path(args.out) if args.out else None)
+        return 0
+    return verify(Path(args.seed))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

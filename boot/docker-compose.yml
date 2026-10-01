@@ -1,0 +1,412 @@
+# Mag runs in containers — agent subprocesses never get your full desktop.
+# Public ingress is intentionally absent. Tailscale sidecars provide tailnet-only
+# access to selected control surfaces.
+#
+#   docker compose up -d --build
+#   http://127.0.0.1:8765/
+#
+# Ollama runs as a core local LLM sidecar in this deployment.
+#   docker compose up -d --build
+
+services:
+  mag:
+    build: .
+    image: mag-sovereign:local
+    container_name: mag-sovereign
+    env_file:
+      - .env
+    environment:
+      PYTHONUTF8: "1"
+      MAG_BIND_HOST: "0.0.0.0"
+      MAG_CONTAINER: "1"
+      MAG_RUNTIME_ROLE: "authoritative"
+      MAG_NO_MIRROR: "1"
+      MAG_DRAINER: "1"
+      # The eye is HOST ollama (127.0.0.1:11434) since 2026-09-07 — Docker Desktop
+      # proxies host.docker.internal to host loopback (same proven path as Bionic).
+      # The provider chat path needs /v1; native /api probes normalize it away.
+      OLLAMA_HOST: "http://host.docker.internal:11434/v1"
+      # Bionic/LM Studio is the host GPU seat. Keep the endpoint overridable
+      # for a relay, while Docker Desktop resolves the host consistently.
+      # B2-490 seat-scope (2026-09-26): this value is COMPOSE-SCOPE only; the
+      # host shell default is http://127.0.0.1:1234/v1 (mag/lm_studio.py BASE).
+      # Do not export the host.docker.internal form on a host shell: Bionic is
+      # not a providers.yaml lane, so no doctor row names a wrong-scope value.
+      BIONIC_BASE_URL: "${BIONIC_BASE_URL:-http://host.docker.internal:1234/v1}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    depends_on:
+      - redis
+    ports:
+      - "8765:8765"
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ./memory:/app/memory
+      - ./watch:/app/watch
+      - ./logs:/app/logs
+      - ./state:/app/state
+      - ./queue:/app/queue
+      - ./jobs:/app/jobs
+      - ./configs:/app/configs:ro
+      - ./mag:/app/mag
+      - ./dashboard:/app/dashboard
+      # AC13 (2026-09-29): the verdicts panel (/api/v1/verdicts, server.py
+      # GPS_LEDGER_DB) reads /app/tools/gps_mcp/gps_ledger.db3, but the image
+      # never carried tools/gps_mcp and no mount did either -- the panel read a
+      # nonexistent file while the X11 feed + Z1 weld wrote the HOST ledger.
+      # Bind the gps_mcp dir so container panel and host feed share ONE ledger
+      # (same pattern as ./mag and ./dashboard; dir mount, not file mount --
+      # file binds on Docker Desktop break if sqlite ever recreates the file).
+      - ./tools/gps_mcp:/app/tools/gps_mcp
+      - ./models:/app/models
+      - ./tests:/app/tests:ro
+      - ./main.py:/app/main.py:ro
+      - ./mag_launch.py:/app/mag_launch.py:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - mag_net
+    # B7 (2026-09-29, tablet incident root cause #2): the inherited image
+    # healthcheck probed :8765/api/v1/health, but on the DASHBOARD that route
+    # is the deep mag.health.sanity sweep whose B2-375 powershell.exe check
+    # can never pass inside a Linux container -- the UI served 200 on / while
+    # every probe 500'd and the container sat UNHEALTHY for 8h. Probe the
+    # pure liveness surface (same URL mag_launch.py gates on). curl/wget are
+    # absent from python:*-slim, so python urllib is the in-image binary.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: mag-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - mag_redis_data:/data
+    restart: unless-stopped
+    networks:
+      - mag_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # RETIRED 2026-09-07 (eye migration): the containerized eye kept dying because
+  # this service had restart policy "no" — every Docker Desktop restart/update
+  # swept it away and nothing revived it (deaths Sep-4, Sep-6 ~14:14Z). The 09-06
+  # audit ruled: host ollama = the eye, Startup Ollama.lnk = the sanctioned front
+  # door. The models always lived on the host — this block only bind-mounted
+  # C:/Users/foste/.ollama/models. Sacred cow, kept behind a profile; resurrect:
+  #   docker compose --profile retired-eye up -d ollama
+  ollama:
+    profiles: ["retired-eye"]
+    image: ollama/ollama:latest
+    container_name: mag-ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - mag_ollama_data:/root/.ollama
+      # Reuse the existing native ollama model store (39GB) instead of re-downloading.
+      # Docker ollama = the single source of truth ("ollama is usually in docker").
+      - C:/Users/foste/.ollama/models:/root/.ollama/models
+    networks:
+      - mag_net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Browser / computer-use seat — runs as a CONTAINER driver (not the desktop).
+  # Headless Chromium under xvfb, CDP over localhost only. Drives FREE web frontends
+  # (Perplexity, DeepSeek, Grok, ChatGPT, Claude) instead of paying their APIs.
+  # Sandboxed: cap_drop ALL + no-new-privileges, no desktop access.
+  #   docker compose --profile browser up -d   (then Mag connects to ws://127.0.0.1:9222)
+  browser:
+    profiles: ["browser"]
+    # PINNED 2026-08-14: image must MATCH the host playwright version (1.62.0) — the old
+    # v1.48.0 image vs host 1.62.0 was a CDP protocol mismatch => connect_over_cdp "socket
+    # hang up" / flaky. Keep these two in lockstep (steal: playwright version mismatch).
+    image: mcr.microsoft.com/playwright:v1.62.0-jammy
+    container_name: mag-browser
+    # BRIDGE networking + published port (FIXED 2026-08-13): `network_mode: host` does NOT expose
+    # the port to the Windows host on Docker Desktop (host net maps to the Docker VM, not your
+    # Windows loopback) — that's why the host got ECONNREFUSED on 9222. Chrome already binds
+    # 0.0.0.0 (--remote-debugging-address=0.0.0.0), so a published port mapping forwards cleanly
+    # to Windows localhost. Docker Desktop forwards published ports to 127.0.0.1 on Windows.
+    ports:
+      - "127.0.0.1:9222:9222"
+    command: >
+      bash -c "CHROME=$$(ls -d /ms-playwright/chromium-*/chrome-linux64/chrome /ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -1) &&
+      rm -rf /tmp/mag-chrome-profile && mkdir -p /tmp/mag-chrome-profile &&
+      exec \"$$CHROME\" --headless=new --remote-debugging-address=0.0.0.0
+      --remote-debugging-port=9222 --remote-allow-origins=* --no-sandbox
+      --disable-dev-shm-usage --disable-gpu
+      --user-data-dir=/tmp/mag-chrome-profile"
+    shm_size: "2gb"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  # Tailscale sidecar for the OpenClaw Gateway. OpenClaw shares this network
+  # namespace, so the Gateway and its private HTTPS tailnet surface are one
+  # Docker-owned unit. TS_AUTHKEY is optional after the first interactive login;
+  # state persists in a named volume.
+  # RETIRED 2026-09-09 (operator GO, zcode seat): hermes covers the internal
+  # agent loop; the outside door (gateway + tailnet + phone surface) parked
+  # whole. State kept in named volumes mag_openclaw_tailscale/mag_openclaw_data.
+  # Resurrect the door stack:
+  #   docker compose --profile retired-openclaw up -d openclaw tailscale-openclaw
+  tailscale-openclaw:
+    profiles: ["retired-openclaw"]
+    image: tailscale/tailscale:v1.94.1
+    container_name: mag-openclaw-tailscale
+    hostname: ${TS_HOSTNAME:-mag-openclaw}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_AUTH_ONCE: "true"
+      TS_HOSTNAME: ${TS_HOSTNAME:-mag-openclaw}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/openclaw.json
+      # Userspace mode works in Docker Desktop without exposing /dev/net/tun.
+      TS_USERSPACE: "true"
+    volumes:
+      - mag_openclaw_tailscale:/var/lib/tailscale
+      # Mount the directory, not an individual file: containerboot watches it.
+      - ./deploy/openclaw/tailscale:/config:ro
+    restart: unless-stopped
+    networks:
+      - mag_net
+    # openclaw shares this netns and reaches the HOST eye via host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--json"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # openclaw gateway — container-only Gateway, reachable through the Tailscale
+  # sidecar above. There is deliberately no host port mapping and no desktop
+  # scheduled-task dependency.
+  # RETIRED 2026-09-09 (operator GO): the consent-gate crash-loop (#20+) dissolved
+  # by retirement, not repair — hermes + flash workers are the internal loop now.
+  # Bone kept for the next outside door: the governed PATCHES queue (external
+  # writes land as JSON in queue/handoff/openclaw/PATCHES, host applies).
+  openclaw:
+    profiles: ["retired-openclaw"]
+    build: ./deploy/openclaw
+    image: mag-openclaw:local
+    container_name: mag-openclaw
+    env_file:
+      - .env
+    environment:
+      # The OpenClaw plugin talks native /api to the HOST eye (2026-09-07 migration).
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+      # Local-only marker so OpenClaw reports the provider as usable.
+      OLLAMA_API_KEY: "ollama-local"
+      # Normalize provider key names at the container boundary. The host .env
+      # keeps the paid/free account labels; OpenClaw receives stable IDs.
+      COHERE_API_KEY: "${COHERE_API_KEY_PAID:-}"
+      CEREBRAS_API_KEY: "${CEREBAS_API_KEY:-}"
+    network_mode: service:tailscale-openclaw
+    depends_on:
+      - tailscale-openclaw
+    volumes:
+      - mag_openclaw_data:/root/.openclaw
+      # Mag DNA read-only — OpenClaw identity stays in the named volume workspace
+      - ./:/mag:ro
+      # Governed write path: OpenClaw drops patch JSON here; Mag host applies.
+      - ./queue/handoff/openclaw/PATCHES:/patches
+      # 4chan board + trajectory tape (hooks FILE here; Mag DNA stays :ro)
+      - ./watch:/board
+      # Live mag-file hook (tool cards → /chan). Mag DNA still :ro.
+      - ./deploy/openclaw/hooks:/opt/openclaw-hooks:ro
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      # OpenClaw is a Node service and shares 127.0.0.1 with its Tailscale
+      # sidecar.  Probe the local UI only; authentication remains unchanged.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18789/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # Optional Cloudflare One edge for phone/browser access. This is a
+  # remotely-managed Tunnel connector: no cloudflared config or credentials
+  # are baked into the image, and no host port is opened. Enable only after
+  # creating the Tunnel + Access application in the Cloudflare dashboard.
+  cloudflared-openclaw:
+    image: cloudflare/cloudflared:latest
+    container_name: mag-openclaw-cloudflared
+    # Retired with the door stack 2026-09-09: it depends_on openclaw healthy,
+    # so it moves with the stack (old "cloudflare" profile would break compose
+    # while openclaw is gated). Phone door successor when wanted = host
+    # cloudflared quick tunnel / named tunnel + Access.
+    profiles: ["retired-openclaw"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN:-}"]
+    # Share the namespace where OpenClaw listens on 127.0.0.1:18789.
+    network_mode: service:tailscale-openclaw
+    depends_on:
+      openclaw:
+        condition: service_healthy
+      tailscale-openclaw:
+        condition: service_started
+    restart: unless-stopped
+
+  # swarm drain worker — CONTAINED 2026-08-27 after the zombie-python sweep found
+  # five mag.mcp_server copies + background-bash beats dying with sessions.
+  # ONE bounded beat per cycle; state/worker.off pauses it without docker commands.
+  # No published ports at all — talks provider APIs outbound and the bind-mounted
+  # queue/ledger only. The template for every future periodic job (tick, miners).
+  worker:
+    build: .
+    image: mag-sovereign:local
+    container_name: mag-worker
+    env_file:
+      - .env
+    environment:
+      PYTHONUTF8: "1"
+      MAG_CONTAINER: "1"
+      # Eye moved to host ollama 2026-09-07 (see mag service note).
+      OLLAMA_HOST: "http://host.docker.internal:11434/v1"
+      BIONIC_BASE_URL: "${BIONIC_BASE_URL:-http://host.docker.internal:1234/v1}"
+      WORKER_BEAT: "1"
+      WORKER_SLEEP: "45"
+      WORKER_MAX_BEAT_SECONDS: "600"
+    # entrypoint override REQUIRED: the image's entrypoint.sh spawns the full fleet
+    # (dashboard/ghost/lab/drainer) — first launch without this spawned a duplicate
+    # sovereign inside the worker cage (killed 2026-08-27, lesson in SANITY.md).
+    entrypoint: ["python", "scripts/container/drain_worker.py"]
+    volumes:
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./state:/app/state
+      - ./configs:/app/configs:ro
+      - ./mag:/app/mag:ro
+      - ./models:/app/models:ro
+      - ./scripts/container/drain_worker.py:/app/scripts/container/drain_worker.py:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - mag_net
+    # The worker is a drain loop, not the dashboard.  The inherited image
+    # healthcheck probes :8765/api/v1/health, which this service never serves.
+    # Its truthful liveness surface is the atomic heartbeat written by
+    # drain_worker.py into the shared state mount.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json,os,time; from datetime import datetime,timezone;
+          d=json.load(open('/app/state/worker_heartbeat.json',encoding='utf-8'));
+          age=(datetime.now(timezone.utc)-datetime.fromisoformat(d['updated_at'].replace('Z','+00:00'))).total_seconds();
+          max_age=int(os.environ.get('WORKER_MAX_BEAT_SECONDS','600'))+int(os.environ.get('WORKER_SLEEP','45'))+60;
+          assert age < max_age, f'worker heartbeat stale: {age:.0f}s (limit {max_age}s)'
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # Estate MCP (B2-291, 2026-09-26): the TOOL_MAP as an always-on MCP service.
+  # mag/mcp_server.py speaks MCP on stdio, so this service runs the loopback
+  # TCP bridge (scripts/container/mcp_tcp_bridge.py): ONE mcp_server subprocess
+  # per connected client, archivist profile = read-only toolset (no
+  # run_shell/write_file/apply_patch). Published on 127.0.0.1 only (loopback
+  # law): reachability = host-local MCP clients (ZCode/VS Code/Claude-class)
+  # plus the trusted mag_net fleet. Transport, not authority -- same posture
+  # as the stdio server docstring.
+  mcp:
+    image: mag-sovereign:local
+    container_name: mag-mcp
+    restart: unless-stopped
+    # entrypoint override REQUIRED (the image entrypoint spawns the full fleet;
+    # see the worker lesson, SANITY.md).
+    entrypoint:
+      - python
+      - scripts/container/mcp_tcp_bridge.py
+      - --port
+      - "8766"
+      # 0.0.0.0 INSIDE the cage is required: the docker proxy dials the
+      # container IP, not the container loopback. The loopback guarantee is
+      # the HOST-side mapping below (127.0.0.1:8766->8766), per the bridge
+      # docstring. (B2-291, live-falsified 2026-09-26: a 127.0.0.1 in-cage
+      # bind answered inside the container but the host got instant EOF.)
+      - --bind
+      - "0.0.0.0"
+      - --profile
+      - archivist
+    environment:
+      PYTHONUTF8: "1"
+      MAG_CONTAINER: "1"
+    volumes:
+      - ./scripts/container/mcp_tcp_bridge.py:/app/scripts/container/mcp_tcp_bridge.py:ro
+      - ./mag:/app/mag:ro
+      - ./tools:/app/tools:ro
+      - ./models:/app/models:ro
+      - ./configs:/app/configs:ro
+      - ./catalog:/app/catalog:ro
+      - ./watch:/app/watch:ro
+      - ./memory:/app/memory:ro
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    ports:
+      - "127.0.0.1:8766:8766"
+    # Truthful healthcheck REQUIRED (worker lesson): the inherited image
+    # healthcheck probes :8765, which this service never serves, so the
+    # container read permanently unhealthy. Probe the bridge port instead.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import socket; socket.create_connection(('127.0.0.1', 8766),
+          timeout=5).close()
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    networks:
+      - mag_net
+
+networks:
+  mag_net:
+    driver: bridge
+
+volumes:
+  mag_ollama_data:
+  mag_redis_data:
+  mag_openclaw_data:
+  mag_openclaw_tailscale:

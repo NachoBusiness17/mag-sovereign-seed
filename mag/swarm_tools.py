@@ -1,0 +1,455 @@
+"""swarm_tools — give our swarms TOOLS: memlance (memory access) + a stateless scratchpad.
+
+Operator (2026-08-12): "how can we give our swarms tools like memlance and a stateless scratchpad."
+
+THE TOOLBELT the swarm workers carry when they execute a task (the NPC toolkit — sense,
+communicate, act):
+  1. MEMLANCE — the swarm's MEMORY ACCESS: read our doctrine/folds (rib_bus mount, percolator
+     invariants, memory folds) and FOLD insights back (publish a RIB). The worker isn't blind; it
+     carries our memory the way a lens carries the whole.
+  2. STATELESS SCRATCHPAD — content-addressed, immutable scratch: each scratch entry is a KNOT
+     (hash of its content -> filename), no mutation, deterministic replay. The worker writes
+     intermediate state without corrupting shared state.
+  3. SWARM_SENSE (moonshot) — the NPC's BODY-SENSE: one compact fog-of-war snapshot fusing
+     health + capacity + economics + map. The eyes it was missing.
+  4. SWARM_PHEROMONE (moonshot) — STIGMERGY: drop/read content-addressed pheromone marks
+     (trail|fruitful|dead|here|danger|signal). Coordinate WITHOUT a shared brain; the trail
+     outlives the kill-and-respawned NPC.
+  5. SWARM_BLACKBOARD (moonshot) — the EGREGORE'S SHARED MIND: post finding|decision|conflict|
+     open-question|handoff|claim; decisions+conflicts pinned forever (anchor coherence), rest evict.
+
+Both the original two are deterministic + $0 and extend the swarm_worker task spec with a `tools`
+field, so the worker knows which tools it carries. Honest: reads real memory; never fabricates a fold.
+
+Schema: swarm_tools.v1 · reuse: rib_bus, percolator, verkle_knot (content addressing), trust_gate
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+try:
+    from config import ROOT
+except Exception:
+    ROOT = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(ROOT))
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+SCHEMA = "swarm_tools.v1"
+SCRATCH_DIR = ROOT / "memory" / "runs" / "swarm_worker" / "scratch"
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# ── MEMLANCE: the swarm's memory access ───────────────────────────────────────
+def memlance(*, domain: str = "general", query: str = "", fold_invariant: str | None = None,
+             fold_domain: str | None = None) -> dict[str, Any]:
+    """The swarm's MEMORY ACCESS: read our doctrine/folds for a domain, and optionally FOLD an
+    insight back (publish a RIB). Deterministic + $0. Honest — reads real memory, never fabricates."""
+    m: dict[str, Any] = {"ok": True, "schema": SCHEMA, "tool": "memlance"}
+    # READ: the domain's mounted RIBs (the doctrine the worker acts under)
+    try:
+        from mag import rib_bus
+        mount = rib_bus.mount(domain)
+        ribs = mount.get("ribs", [])
+        m["doctrine"] = {"domain": domain, "n_ribs": len(ribs), "ribs": ribs[:20]}
+    except Exception as e:
+        m["doctrine_error"] = str(e)[:80]
+    # READ: the invariants registry (percolator)
+    try:
+        from mag import percolator
+        reg = percolator._load_registry() if hasattr(percolator, "_load_registry") else {}
+        m["invariants"] = len(reg.get("invariants") or {})
+    except Exception as e:
+        m["invariants_error"] = str(e)[:80]
+    # WRITE (FOLD): publish a RIB back into the breeding ground (the worker's contribution)
+    if fold_invariant:
+        try:
+            from mag import rib_bus
+            pub = rib_bus.publish_rib(fold_invariant, domain=fold_domain or "swarm",
+                                      source="swarm-memlance", fold=False, publish=False)
+            m["folded"] = {"ok": pub.get("ok"), "domain": pub.get("domain"),
+                           "n_total": pub.get("n_total")}
+        except Exception as e:
+            m["fold_error"] = str(e)[:80]
+    m["note"] = "memlance: the worker carries our memory (doctrine + invariants) and can fold back"
+    return m
+
+
+# ── STATELESS SCRATCHPAD: content-addressed, immutable scratch ────────────────
+def scratch_write(*, content: str, owner: str = "worker") -> dict[str, Any]:
+    """Write ONE immutable, content-addressed scratch entry (a KNOT). No mutation — the same
+    content always lands in the same file (deterministic replay). Deterministic + $0."""
+    content = (content or "").strip()
+    if not content:
+        return {"ok": False, "schema": SCHEMA, "error": "empty scratch"}
+    h = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
+    entry = {"schema": SCHEMA, "tool": "scratchpad", "ts": _now(), "owner": owner,
+             "hash": h, "content": content[:2000]}
+    path = SCRATCH_DIR / f"scratch-{h}.json"
+    existed = path.is_file()
+    if not existed:  # stateless: never overwrite an existing knot
+        SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "schema": SCHEMA, "tool": "scratchpad", "hash": h,
+            "path": str(path.relative_to(ROOT)), "created": not existed}
+
+
+def scratch_read(*, limit: int = 40) -> dict[str, Any]:
+    """Read the stateless scratchpad (the worker's immutable working notes). Deterministic + $0."""
+    entries = []
+    if SCRATCH_DIR.is_dir():
+        for p in sorted(SCRATCH_DIR.glob("scratch-*.json"))[-limit:]:
+            try:
+                entries.append(json.loads(p.read_text(encoding="utf-8", errors="replace")))
+            except Exception:
+                continue
+    return {"ok": True, "schema": SCHEMA, "tool": "scratchpad", "n_entries": len(entries),
+            "entries": entries}
+
+
+# ── VERKLE-WRITE: the swarm updates the verkle tree ──────────────────────────
+def verkle_write(*, theme: str, summary: str, owner: str = "worker",
+                 payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The swarm's VERKLE-WRITE tool: append a content-addressed verkle KNOT to the chain (update
+    the verkle tree) — the durable, replayable substrate. Deterministic + $0.
+    HONEST: the knot lands in the chain (memory/biography/knots/), which is staged for VRAM;
+    VRAM residency is unconfirmed until telemetry resolves."""
+    import re
+    safe_session = re.sub(r"[^A-Za-z0-9_-]+", "-", f"swarm-{owner}-{theme}")[:60] or "swarm-knot"
+    dossier = {
+        "session_id": safe_session,  # no colon (invalid in Windows filenames)
+        "time": {
+            "created_at": {"iso_minute": _now(), "unix_minute": None, "date": None},
+            "updated_at": {"iso_minute": _now(), "unix_minute": None, "date": None},
+        },
+        "scalar_knot": {
+            "duration_minutes": 0.1,
+            "tension_index": "1",
+            "residual_weight": 1.0,
+            "theme_vector": {"dominant": theme[:60], "basis": [theme[:60]],
+                             "raw": [1.0, 0.0, 0.0, 0.0], "normalized": [1.0, 0.0, 0.0, 0.0]},
+        },
+        "content_commit": {"hex": hashlib.sha256(summary.encode("utf-8")).hexdigest()[:16]},
+        "rib": {"domain": "swarm", "invariant": summary[:400], "source": f"swarm-{owner}"},
+    }
+    if payload:
+        dossier["payload"] = payload
+    # SANITY GATE (2026-08-12): only NOVEL + HIGH-TRUST + CLEAN writes to the chain, not poison.
+    try:
+        from mag import trust_gate
+        g = trust_gate.gate(summary, source=f"swarm-{owner}", domain="verkle")
+        if g["verdict"] != "ACCEPT":
+            return {"ok": False, "schema": SCHEMA, "tool": "verkle_write", "gated": g["verdict"],
+                    "reason": g["reason"],
+                    "note": f"verkle write GATED: {g['verdict']} — {g['reason']} (not written)"}
+    except Exception as e:
+        # gate unavailable — be safe, don't write (fail closed, not open)
+        return {"ok": False, "schema": SCHEMA, "tool": "verkle_write",
+                "error": f"trust_gate unavailable ({str(e)[:80]}) — fail closed, not written"}
+    try:
+        from mag import verkle_knot
+        k = verkle_knot.append_verkle_knot(dossier)
+        return {"ok": True, "schema": SCHEMA, "tool": "verkle_write",
+                "leaf_hash": k.get("leaf_hash", ""), "root": k.get("verkle_root") or k.get("root", ""),
+                "note": "the swarm appended a verkle knot to the chain (content-addressed, "
+                        "replayable) — the verkle tree is updated; staged for VRAM"}
+    except Exception as e:
+        return {"ok": False, "schema": SCHEMA, "tool": "verkle_write", "error": str(e)[:160]}
+
+
+# ── SWARM_SENSE: the NPC's body-sense (perceive the world under fog of war) ──
+def swarm_sense(*, owner: str = "worker") -> dict[str, Any]:
+    """The swarm's SENSE tool: one compact local perception snapshot (fog-of-war view of its own
+    body). Fuses health + capacity + economics + map into a bounded sensory field, $0 + deterministic.
+    HONEST — reads real modules; every field that's unavailable is reported, never fabricated.
+    This is the eyes the NPC was missing: one call instead of six separate monitors."""
+    s: dict[str, Any] = {"ok": True, "schema": SCHEMA, "tool": "swarm_sense", "owner": owner}
+    # HEALTH
+    try:
+        from mag import swarm_health
+        h = swarm_health.status() if hasattr(swarm_health, "status") else {}
+        s["health"] = {"ok": h.get("ok"), "n_workers": h.get("n_workers") or h.get("workers")}
+    except Exception as e:
+        s["health"] = {"error": str(e)[:80]}
+    # CAPACITY
+    try:
+        from mag import swarm_capacity
+        c = swarm_capacity.status() if hasattr(swarm_capacity, "status") else {}
+        s["capacity"] = {"ok": c.get("ok"), "available": c.get("available"), "load": c.get("load")}
+    except Exception as e:
+        s["capacity"] = {"error": str(e)[:80]}
+    # ECONOMICS
+    try:
+        from mag import swarm_economics
+        e = swarm_economics.status() if hasattr(swarm_economics, "status") else {}
+        s["economics"] = {"ok": e.get("ok"), "budget_left": e.get("budget_left") or e.get("budget")}
+    except Exception as e:
+        s["economics"] = {"error": str(e)[:80]}
+    # MAP (neighbors / where the NPC is)
+    try:
+        from mag import swarm_map
+        m = swarm_map.status() if hasattr(swarm_map, "status") else {}
+        s["map"] = {"ok": m.get("ok"), "n_neighbors": m.get("n_neighbors") or m.get("nodes")}
+    except Exception as e:
+        s["map"] = {"error": str(e)[:80]}
+    s["note"] = "swarm_sense: the NPC's fog-of-war body-snapshot (health/capacity/economics/map)"
+    return s
+
+
+# ── SWARM_PHEROMONE: stigmergy — coordinate WITHOUT a shared brain ───────────
+PHEROMONE_DIR = SCRATCH_DIR.parent / "pheromone"
+_PHEROMONE_KINDS = {"trail", "fruitful", "dead", "here", "danger", "signal", "drift"}
+
+
+def pheromone_drop(*, scent: str, kind: str = "trail", at: str = "", owner: str = "worker") -> dict[str, Any]:
+    """Drop ONE content-addressed pheromone mark (an ant-trail that outlives the NPC). Kind is one of
+    trail|fruitful|dead|here|danger|signal. Content-addressed + immutable (same mark = same knot), so
+    the trail is deterministic and replayable — the ant's way to communicate across kill-and-respawn.
+    $0. HONEST — only a real mark lands; never invents a scent."""
+    scent = (scent or "").strip()[:200]
+    if not scent:
+        return {"ok": False, "schema": SCHEMA, "tool": "swarm_pheromone", "error": "empty scent"}
+    if kind not in _PHEROMONE_KINDS:
+        kind = "trail"
+    h = hashlib.sha256(f"{kind}:{at}:{scent}".encode("utf-8")).hexdigest()[:16]
+    PHEROMONE_DIR.mkdir(parents=True, exist_ok=True)
+    entry = {"schema": SCHEMA, "tool": "swarm_pheromone", "ts": _now(), "owner": owner,
+             "kind": kind, "at": at[:120], "scent": scent, "hash": h}
+    path = PHEROMONE_DIR / f"{kind}-{h}.json"
+    existed = path.is_file()
+    if not existed:
+        path.write_text(json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "schema": SCHEMA, "tool": "swarm_pheromone", "kind": kind,
+            "hash": h, "created": not existed,
+            "note": "pheromone dropped — the trail outlives this NPC (content-addressed, replayable)"}
+
+
+def pheromone_trail(*, kind: str = "", limit: int = 40) -> dict[str, Any]:
+    """READ the local pheromone trail: the marks other NPCs left (or this one, all kinds). $0.
+    This is how a stateless, respawned NPC picks up where its dead predecessor left off."""
+    marks = []
+    if PHEROMONE_DIR.is_dir():
+        pat = f"{kind}-*.json" if kind in _PHEROMONE_KINDS else "*-*.json"
+        for p in sorted(PHEROMONE_DIR.glob(pat))[-limit:]:
+            try:
+                marks.append(json.loads(p.read_text(encoding="utf-8", errors="replace")))
+            except Exception:
+                continue
+    return {"ok": True, "schema": SCHEMA, "tool": "swarm_pheromone", "kind": kind or "all",
+            "n_marks": len(marks), "trail": marks,
+            "note": "the local pheromone trail — what the swarm knows by leaving marks"}
+
+
+def pheromone_drift(*, finding: str, source_task: str = "", reason: str = "",
+                    owner: str = "worker") -> dict[str, Any]:
+    """DRIFT-TARGET (operator 2026-08-13): an agent on ANOTHER task finds something useful to the
+    WHOLE -> drop a 'drift' pheromone marking it for LATER INSPECTION, so the swarm's targeting
+    drifts toward it. Kind='drift' (content-addressed, immutable). $0. HONEST — marks only a real
+    finding; never invents one."""
+    finding = (finding or "").strip()
+    if not finding:
+        return {"ok": False, "schema": SCHEMA, "tool": "swarm_pheromone", "error": "empty finding"}
+    scent = f"DRIFT-TARGET from {source_task or 'a task'}: {finding}"
+    base = pheromone_drop(scent=scent, kind="drift", at=reason or "for-later-inspection",
+                          owner=owner)
+    if not base.get("ok"):
+        return base
+    return {"ok": True, "schema": SCHEMA, "tool": "drift_target",
+            "hash": base.get("hash"), "finding": finding[:200],
+            "source_task": source_task[:80], "reason": reason[:120],
+            "note": "drift-target dropped: a finding useful to the whole, flagged for later "
+                    "inspection — the swarm's targeting will drift toward it"}
+
+
+def drift_targets(*, limit: int = 40) -> dict[str, Any]:
+    """READ the DRIFT-TARGETS: the marks agents flagged as useful-to-the-whole for later inspection.
+    $0. This is the swarm's drift-targeting surface — what to inspect next / where to aim."""
+    marks = []
+    if PHEROMONE_DIR.is_dir():
+        for p in sorted(PHEROMONE_DIR.glob("drift-*.json"))[-limit:]:
+            try:
+                marks.append(json.loads(p.read_text(encoding="utf-8", errors="replace")))
+            except Exception:
+                continue
+    return {"ok": True, "schema": SCHEMA, "tool": "drift_targets", "n_targets": len(marks),
+            "targets": marks, "note": "the swarm's drift-targets — findings flagged for later "
+                                      "inspection (targeting drifts toward these)"}
+
+
+# ── SWARM_BLACKBOARD: the egregore's shared mind ─────────────────────────────
+BLACKBOARD_DIR = SCRATCH_DIR.parent / "blackboard"
+_BB_KINDS = {"finding", "decision", "conflict", "open-question", "handoff", "claim"}
+_BB_PINNED = {"decision", "conflict"}  # anchored forever (they steer coherence) — steal from agentswarm
+_BB_CAP = 4000
+
+
+def blackboard_post(*, text: str, kind: str = "finding", owner: str = "worker") -> dict[str, Any]:
+    """POST a note to the egregore's shared blackboard. Kinds: finding|decision|conflict|open-question|
+    handoff|claim. DECISIONS + CONFLICTS are PINNED FOREVER (they anchor mission-wide coherence); the
+    rest are evicted past a cap. This is the collective mind the swarm shares — steal from agentswarm.
+    $0. HONEST — posts real text; decisions/conflicts never silently dropped."""
+    text = (text or "").strip()[:400]
+    if not text:
+        return {"ok": False, "schema": SCHEMA, "tool": "swarm_blackboard", "error": "empty text"}
+    if kind not in _BB_KINDS:
+        kind = "finding"
+    # LAW: a roast can become a proposal; it cannot become a permission.
+    # Pinned kinds (decision/conflict) anchor swarm coherence forever — a
+    # legacy direct write must never mint them. Route those through
+    # switchboard.propose; downgrade everything else is fine, these are not.
+    if kind in _BB_PINNED:
+        return {"ok": False, "schema": SCHEMA, "tool": "swarm_blackboard",
+                "error": "pinned kind requires switchboard authorization — use switchboard_v2.propose",
+                "authority_label": "tool-output"}
+    # steer_bus v0.1 (2026-09-01, salon lane A I1-I3): steering posts are gated —
+    # schema + closed enum + ttl cap + anchor; gossip threads never become steers.
+    if (text or "").strip().upper().startswith("STEER"):
+        try:
+            import steer_bus
+        except ImportError:
+            return {"ok": False, "schema": SCHEMA, "tool": "swarm_blackboard",
+                    "error": "steer_bus module missing — steering post refused",
+                    "authority_label": "tool-output"}
+        _sb = steer_bus.authorize(text, source_seat=owner)
+        if not _sb.get("ok"):
+            return {"ok": False, "schema": SCHEMA, "tool": "swarm_blackboard",
+                    "error": "steer_bus: " + _sb.get("reason", "unauthorized"),
+                    "authority_label": "agent-generated"}
+    BLACKBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    idx = 0
+    for p in sorted(BLACKBOARD_DIR.glob("bb-*.json")):
+        try:
+            n = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+            if n.get("seq", 0) >= idx:
+                idx = n.get("seq", 0) + 1
+        except Exception:
+            continue
+    entry = {"schema": SCHEMA, "tool": "swarm_blackboard", "seq": idx, "ts": _now(),
+             "owner": owner, "kind": kind, "pinned": kind in _BB_PINNED, "text": text,
+             "authority_label": "tool-output",
+             "authority": {"status": "UNMESHED", "authority_label": "tool-output",
+                           "note": "legacy direct write; route through switchboard.propose for any effect"}}
+    (BLACKBOARD_DIR / f"bb-{idx:05d}.json").write_text(
+        json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8")
+    # EVICTION (the steal, made real): pinned decisions/conflicts live forever; evict the oldest
+    # non-pinned past the cap so the mind stays bounded (coherence anchored, noise trimmed).
+    try:
+        np_files = []
+        for p in sorted(BLACKBOARD_DIR.glob("bb-*.json")):
+            try:
+                n = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+                if not n.get("pinned"):
+                    np_files.append((n.get("seq", 0), p))
+            except Exception:
+                continue
+        over = len(np_files) - _BB_CAP
+        for _, p in sorted(np_files)[: max(0, over)]:
+            p.unlink(missing_ok=True)
+    except Exception:
+        pass  # eviction is best-effort; never fail a real post
+    return {"ok": True, "schema": SCHEMA, "tool": "swarm_blackboard", "seq": idx,
+            "kind": kind, "pinned": entry["pinned"],
+            "note": "posted to the egregore's blackboard — decisions/conflicts are pinned forever"}
+
+
+def blackboard_read(*, limit: int = 60, pinned_only: bool = False) -> dict[str, Any]:
+    """READ the egregore's shared blackboard: pinned decisions/conflicts ALWAYS + the recent tail.
+    $0. This is the collective memory the swarm acts under — the NPC reads the mind before acting."""
+    notes = []
+    if BLACKBOARD_DIR.is_dir():
+        for p in sorted(BLACKBOARD_DIR.glob("bb-*.json")):
+            try:
+                n = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+                if pinned_only and not n.get("pinned"):
+                    continue
+                notes.append(n)
+            except Exception:
+                continue
+    pinned = [n for n in notes if n.get("pinned")]
+    tail = [n for n in notes if not n.get("pinned")][-limit:]
+    return {"ok": True, "schema": SCHEMA, "tool": "swarm_blackboard",
+            "n_pinned": len(pinned), "n_tail": len(tail),
+            "pinned": pinned, "tail": tail,
+            "note": "the egregore's mind — pinned decisions/conflicts anchor, the tail is the recent"}
+
+
+# ── TASK SPEC with tools ──────────────────────────────────────────────────────
+def spec_with_tools(goal: str, *, tools: list[str] | None = None, provider: str = "deepseek",
+                    domain: str = "auto", tag: str = "") -> dict[str, Any]:
+    """Enqueue a swarm task that CARRIES tools (the NPC toolbelt: sense/pheromone/blackboard +
+    memlance/scratchpad/verkle_write) — extends swarm_worker.enqueue_task with a `tools` field so the
+    worker knows what it can use."""
+    tools = tools or ["swarm_sense", "swarm_pheromone", "swarm_blackboard",
+                      "scan_measure", "scan_probe", "scan_grid", "mean_field", "research",
+                      "memlance", "scratchpad", "verkle_write"]
+    try:
+        from mag import swarm_worker
+        base = swarm_worker.enqueue_task(goal, provider=provider, domain=domain, tag=tag)
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:120]}
+    if not base.get("ok"):
+        return base
+    # attach the tools to the queued spec (the worker reads `tools` before executing)
+    tid = base["task_id"]
+    p = swarm_worker.QUEUE_DIR / f"{tid}.json"
+    try:
+        spec = json.loads(p.read_text(encoding="utf-8"))
+        spec["tools"] = tools
+        p.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        return {"ok": False, "error": f"attach tools failed: {str(e)[:80]}", "task_id": tid}
+    return {"ok": True, "schema": SCHEMA, "task_id": tid, "tools": tools,
+            "note": "task enqueued carrying tools (memlance + stateless scratchpad)"}
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="swarm-tools")
+    ap.add_argument("cmd", nargs="?", default="spec",
+                    choices=["spec", "memlance", "scratch", "scratch-read", "verkle",
+                             "sense", "pheromone", "pheromone-trail", "blackboard", "blackboard-read"])
+    ap.add_argument("goal", nargs="*", default=[])
+    ap.add_argument("--domain", default="general")
+    a = ap.parse_args(argv)
+    if a.cmd == "memlance":
+        print(json.dumps(memlance(domain=a.domain), ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "scratch":
+        print(json.dumps(scratch_write(content=" ".join(a.goal) or "scratch note"),
+                         ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "scratch-read":
+        print(json.dumps(scratch_read(), ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "verkle":
+        print(json.dumps(verkle_write(theme="swarm", summary=" ".join(a.goal) or "swarm knot"),
+                         ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "sense":
+        print(json.dumps(swarm_sense(), ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "pheromone":
+        print(json.dumps(pheromone_drop(scent=" ".join(a.goal) or "here"), ensure_ascii=False,
+                         indent=2, default=str))
+    elif a.cmd == "pheromone-trail":
+        print(json.dumps(pheromone_trail(), ensure_ascii=False, indent=2, default=str))
+    elif a.cmd == "blackboard":
+        print(json.dumps(blackboard_post(text=" ".join(a.goal) or "a note"), ensure_ascii=False,
+                         indent=2, default=str))
+    elif a.cmd == "blackboard-read":
+        print(json.dumps(blackboard_read(), ensure_ascii=False, indent=2, default=str))
+    else:
+        print(json.dumps(spec_with_tools(" ".join(a.goal) or "a swarm task with tools"),
+                         ensure_ascii=False, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""bay_organs — Leg-1 queue plumbing organs (SHERPA_ROUTE v2 Leg 1, guards a-d).
+
+Three organs, stdlib-only, $0 at runtime (no LLM calls):
+
+1. CLAIM ORGAN — atomic claim on queue items (organ_queue / overnight_queue /
+   engine_*_queue / anything). A claim is a file at
+       <claims_root>/<queue>/<task_id>.json
+   created by temp-write + same-volume os.rename. On win32 os.rename REFUSES to
+   overwrite an existing target (FileExistsError), which makes create-by-rename
+   an atomic test-and-set: when two engines race on one item, exactly one rename
+   wins. Claimed items are invisible to other claimants until grace expiry
+   (default 30 min, env BAY_CLAIM_GRACE_S) or until the claimant's pid dies.
+   Expired/dead claims are taken over by move-aside-then-recreate, which stays
+   single-winner because the final creation is always a rename-CAS onto the one
+   fixed target name.
+
+2. WRITER LOCKS — every writer of ractor_board.jsonl / queue files writes a
+   lockfile {pid, seat, ts} (the runaway scar's fix: writers become
+   attributable). JSON-shaped so reconciler read_pid can adopt them; plain-int
+   legacy locks still parse.
+
+3. ATOMIC STATE WRITES — temp-write + os.replace (same volume, win32-atomic
+   overwrite) for state/lock files that get rewritten in place.
+
+Deaths this organ buries (SHERPA_ROUTE v2 "what a dead Mickey teaches"):
+  sp_83204700  — CHURN_PICK_OFFSET stagger is not a claim; two engines mined
+                 one task. Claims make the second engine blind to a taken item.
+  park ghost   — 1.84M log lines: idempotency re-derived from output BYTES.
+                 (The state-marker half of that fix lives in overnight_churn;
+                 this module only supplies the atomic writes it stands on.)
+  8-banner slot — slot identity unowned; writer locks bind a log/slot to a pid.
+
+Win32 notes: temp files are created in the SAME directory as their target
+(same volume by construction — the rename can never cross a filesystem
+boundary). os.rename raise-on-existing is the CAS; os.replace is the
+overwrite; both are atomic on NTFS for same-volume moves of regular files.
+"""
+
+import calendar
+import json
+import os
+import random
+import time
+
+DEFAULT_GRACE_S = int(os.environ.get("BAY_CLAIM_GRACE_S", "1800"))  # 30 min
+DEFAULT_CLAIMS_ROOT = os.environ.get(
+    "CHURN_CLAIMS_ROOT",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 "watch", "bay", "claims"))
+
+
+def now_iso():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def pid_alive(pid):
+    """win32-correct liveness probe. NOT os.kill(pid, 0): measured 2026-09-04
+    on this host (win32, Python 3.11.15) — os.kill(pid, 0) NEVER raises, not
+    for dead pids, not for terminated children; it is a no-op here, so the
+    old reconciler probe always reported 'alive'. OpenProcess with
+    PROCESS_QUERY_LIMITED_INFORMATION + GetExitCodeProcess is the honest
+    probe: no handle = gone; exit code still STILL_ACTIVE = alive."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    try:
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not h:
+            return False  # no handle: process gone (or unprobeable -> not alive)
+        try:
+            code = ctypes.c_ulong()
+            if not k32.GetExitCodeProcess(h, ctypes.byref(code)):
+                return False
+            return code.value == STILL_ACTIVE
+        finally:
+            k32.CloseHandle(h)
+    except Exception:
+        return False
+
+
+def atomic_write_json(path, obj, overwrite=False):
+    """Write obj to path atomically. overwrite=False -> create-only CAS via
+    os.rename (raises FileExistsError if path exists — the race winner's
+    signal). overwrite=True -> atomic in-place replace via os.replace.
+    Temp file lives in the target's directory: same volume, always."""
+    d = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, ".tmp-%d-%d-%s" % (os.getpid(), time.time_ns(),
+                                             "".join(random.choice("0123456789abcdef") for _ in range(6))))
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    try:
+        if overwrite:
+            os.replace(tmp, path)
+        else:
+            os.rename(tmp, path)  # win32: FileExistsError if path exists = CAS
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+# --------------------------------------------------------------------------
+# ORGAN 2: writer locks (runaway scar: writers must be attributable)
+# --------------------------------------------------------------------------
+
+def writer_lock_path(name, root=None):
+    r = root or os.path.join(os.path.dirname(DEFAULT_CLAIMS_ROOT), "locks", "writers")
+    return os.path.join(r, "%s.lock" % name)
+
+
+def write_writer_lock(path_or_name, seat="unknown", root=None):
+    """Write {pid, seat, ts} to a lockfile (atomic overwrite). Accepts a full
+    path or a bare name (placed under watch/bay/locks/writers/). Returns the
+    lock dict. This is the fix for the runaway scar: every writer of
+    ractor_board.jsonl / queue files carries pid + seat + ts."""
+    path = path_or_name if os.path.isabs(path_or_name) or os.sep in path_or_name or "/" in path_or_name \
+        else writer_lock_path(path_or_name, root)
+    lock = {"pid": os.getpid(), "seat": seat, "ts": now_iso()}
+    atomic_write_json(path, lock, overwrite=True)
+    return lock
+
+
+def read_lock(path):
+    """Read a lockfile: JSON {pid,...} or legacy bare-int pid. Returns dict."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            txt = fh.read().strip()
+    except OSError:
+        return None
+    if not txt:
+        return None
+    try:
+        return {"pid": int(txt), "seat": "legacy", "ts": None}
+    except ValueError:
+        pass
+    try:
+        obj = json.loads(txt)
+    except ValueError:
+        return None
+    return obj if isinstance(obj, dict) and obj.get("pid") else None
+
+
+# --------------------------------------------------------------------------
+# ORGAN 1: the claim organ
+# --------------------------------------------------------------------------
+
+def claim_dir(queue, root=None):
+    return os.path.join(root or DEFAULT_CLAIMS_ROOT, queue)
+
+
+def claim_path(queue, task_id, root=None):
+    return os.path.join(claim_dir(queue, root), "%s.json" % task_id)
+
+
+def _read_claim(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def claim_is_active(claim, grace_s=DEFAULT_GRACE_S):
+    """Active = fresh (within ITS grace) AND claimant pid alive. The claim's
+    OWN stored grace_s wins (the window is fixed at claim time); the passed
+    default only covers legacy claims without one. A dead claimer releases
+    its food immediately; a live holder keeps it until grace expiry."""
+    if not claim:
+        return False
+    if not pid_alive(claim.get("pid")):
+        return False
+    try:
+        window = int(claim.get("grace_s", grace_s))
+    except (TypeError, ValueError):
+        window = int(grace_s)
+    try:
+        age = time.time() - calendar.timegm(time.strptime(claim["ts"], "%Y-%m-%dT%H:%M:%SZ"))
+    except (KeyError, ValueError, OverflowError):
+        return False  # unreadable claim: treat as stale, never as a lock
+    return 0 <= age < window
+
+
+def try_claim(queue, task_id, engine="unknown", slot="unknown",
+              grace_s=DEFAULT_GRACE_S, root=None):
+    """Atomically claim one queue item. Returns the claim dict on win, None on
+    loss (item held by a fresh live claim) — the claim organ's whole contract:
+    two claimants, one item, exactly one non-None.
+
+    Takeover of stale claims (expired or dead pid) is move-aside-then-CAS, and
+    NEVER blind: we only tomb-move a claim we could actually read AND prove
+    stale. An unreadable target (win32 filter locks on just-created files are
+    real — measured in the race harness) means we re-read, then LOSE SAFELY
+    rather than steal. Every interleaving of two takers yields exactly one
+    winner because the final creation is always a rename-CAS onto the one
+    fixed target name."""
+    target = claim_path(queue, task_id, root)
+    claim = {"queue": queue, "task": task_id, "engine": engine, "slot": slot,
+             "pid": os.getpid(), "ts": now_iso(), "grace_s": grace_s,
+             "token": "%d-%d" % (time.time_ns(), random.randrange(1 << 30))}
+    d = claim_dir(queue, root)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, ".tmp-%d-%d-%s.json" % (os.getpid(), time.time_ns(),
+                                                  "".join(random.choice("0123456789abcdef") for _ in range(6))))
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(claim, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    try:
+        for _round in range(3):
+            try:
+                os.rename(tmp, target)          # CAS: win32 raises FileExistsError if held
+                return claim
+            except FileExistsError:
+                pass
+            except OSError:
+                pass  # sharing violation mid-race: fall through to read-and-judge
+            existing = None
+            for _try in range(3):               # re-read against transient locks
+                existing = _read_claim(target)
+                if existing is not None:
+                    break
+                time.sleep(0.02)
+            if existing is None:
+                continue  # target gone (raced away) or unreadable: one more CAS round
+            if claim_is_active(existing, grace_s):
+                return None                     # fresh live claim: we lost, cleanly
+            # POSITIVE staleness proven (parseable + expired or dead pid):
+            # move the stale claim aside, then CAS onto the freed name.
+            tomb = os.path.join(d, ".expired-%s-%d-%d.json" % (task_id, time.time_ns(), os.getpid()))
+            try:
+                os.rename(target, tomb)         # only ONE taker can win this move
+            except OSError:
+                pass                            # another taker moved it first
+        return None  # no clean verdict in three rounds: lose safely, never steal blind
+    finally:
+        if os.path.isfile(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def release_claim(queue, task_id, token, root=None):
+    """Release OUR claim (post-completion). Only removes the file if it still
+    carries our token — an expired-and-taken-over claim belongs to the new
+    holder and is left alone."""
+    target = claim_path(queue, task_id, root)
+    claim = _read_claim(target)
+    if not claim or claim.get("token") != token:
+        return False
+    try:
+        os.remove(target)
+        return True
+    except OSError:
+        return False
+
+
+def claim_active(queue, task_id, grace_s=DEFAULT_GRACE_S, root=None):
+    """Is this item currently held (fresh claim + live pid)? The pending
+    filter's invisibility check."""
+    return claim_is_active(_read_claim(claim_path(queue, task_id, root)), grace_s)
+
+
+def sweep_expired(queue, grace_s=DEFAULT_GRACE_S, root=None, now=None):
+    """Garbage-collect expired claim files and tombstones for one queue.
+    Returns count removed. Active claims (fresh + live pid) are never touched.
+    Called by the harness and safe to call from any engine between picks."""
+    d = claim_dir(queue, root)
+    if not os.path.isdir(d):
+        return 0
+    now = now if now is not None else time.time()
+    removed = 0
+    for name in os.listdir(d):
+        p = os.path.join(d, name)
+        if name.startswith(".tmp-"):
+            try:
+                if now - os.path.getmtime(p) > 300:
+                    os.remove(p)
+                    removed += 1
+            except OSError:
+                pass
+            continue
+        if name.startswith(".expired-"):
+            try:
+                if now - os.path.getmtime(p) > grace_s:
+                    os.remove(p)
+                    removed += 1
+            except OSError:
+                pass
+            continue
+        if name.endswith(".json"):
+            c = _read_claim(p)
+            if c and not claim_is_active(c, grace_s) and not pid_alive(c.get("pid")):
+                try:
+                    os.remove(p)  # dead claimant's abandoned claim
+                    removed += 1
+                except OSError:
+                    pass
+    return removed

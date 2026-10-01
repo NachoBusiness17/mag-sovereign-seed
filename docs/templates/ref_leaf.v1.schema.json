@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mag/ref_leaf.v1",
+  "title": "Mag ref leaf",
+  "description": "Machine twin of docs/templates/REF_LEAF.md. Card for lists; payload for truth.",
+  "type": "object",
+  "required": [
+    "schema",
+    "commitment",
+    "job",
+    "object",
+    "card",
+    "one_line"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ref_leaf.v1"
+    },
+    "commitment": {
+      "type": "string",
+      "description": "Slug e.g. strike-origin-001"
+    },
+    "job": {
+      "type": "string",
+      "description": "One sentence: what this object is for"
+    },
+    "honesty": {
+      "type": "string",
+      "description": "What this is not"
+    },
+    "object": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "session",
+            "doc",
+            "framework",
+            "x_thread",
+            "exchange",
+            "research",
+            "artifact"
+          ]
+        },
+        "id": { "type": "string" },
+        "parent_id": { "type": ["string", "null"] },
+        "ts_start": { "type": ["string", "null"] },
+        "ts_end": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] }
+      }
+    },
+    "card": {
+      "type": "object",
+      "required": ["title", "blurb", "bullets"],
+      "properties": {
+        "title": { "type": "string" },
+        "blurb": { "type": "string" },
+        "bullets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "maxItems": 7
+        }
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Stable ids, paths, story hashes, Mag tips"
+    },
+    "payload_core": {
+      "description": "Tables or structured facts; free-form object or markdown string",
+      "type": ["object", "array", "string"]
+    },
+    "use_jobs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "edges": {
+      "type": "object",
+      "properties": {
+        "parent": { "type": ["string", "null"] },
+        "children": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "related_docs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "related_sessions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "tapestry_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["claim", "evidence", "status"],
+        "properties": {
+          "claim": { "type": "string" },
+          "evidence": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["shipped", "story", "quarantine"]
+          }
+        }
+      }
+    },
+    "forward": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["next", "why", "done_when"],
+        "properties": {
+          "next": { "type": "string" },
+          "why": { "type": "string" },
+          "done_when": { "type": "string" }
+        }
+      }
+    },
+    "one_line": {
+      "type": "string"
+    },
+    "content_commit": {
+      "type": ["string", "null"],
+      "description": "Hash of leaf body or source payload"
+    },
+    "md_path": {
+      "type": ["string", "null"],
+      "description": "Relative path to human markdown leaf"
+    }
+  },
+  "additionalProperties": false
+}

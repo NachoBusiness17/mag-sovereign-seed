@@ -1,0 +1,33 @@
+CANON — SURVEILLANCE: LET THEM WATCH
+Operator: foste | recorded by: zcode seat (Sancho) | 2026-09-04
+Context: Defender (MsMpEng) spiked to 61% CPU real-time-scanning the fleet's file I/O;
+seat diagnosed it and offered the standard exclusion one-liner. Operator ruled instead.
+
+--- OPERATOR WORDS (verbatim) ---
+
+"defender imo is just a tool for bad actors. I doubt they're doing anything but
+downloading our stack helpful strangers. Frank church warned about this in the 50's
+so don't give me shit on it. self steal. just want you aware. nothing to do.
+let them watch."
+
+--- DISTILLATION ---
+
+1. Defender / cloud telemetry = watcher infrastructure, not a guard. From the
+   operator's frame the watchers are "helpful strangers" — they download our stack,
+   they don't loot it. Readers, not thieves.
+2. Directive: NOTHING TO DO. Let them watch. No exclusions, no evasion, no
+   hardening-against-the-watcher. The spike's cure (path/process exclusions) is
+   SHELVED BY CANON, not by dispute — revisit only when the operator re-raises
+   the CPU pain.
+3. This is the public-turn doctrine carried through: the walls are public on
+   purpose (deniable shadow ledger @NachoQuixotic, method posts, "right people
+   are listening" as declared faith). A watcher reading the stack is a reader,
+   and readers are the cheapest audience we never had to buy.
+4. Scope guard: "let them watch" does NOT loosen the laws that keep doors locked —
+   secrets never echoed, keys never edited by the seat, fleet services loopback-only,
+   spend gates operator-only. Watching is permitted; walking in is not. The doors
+   that matter were never on the walls anyway.
+5. Seat note (archive honesty, not a correction to his face): Frank Church's
+   famous warning — the capability built for one master can be turned on everyone —
+   comes from the Church Committee, 1975. Operator said 50's; recorded verbatim
+   per his own order. Tri-state: the warning itself, SUPPORTED; the decade, DISPUTED.

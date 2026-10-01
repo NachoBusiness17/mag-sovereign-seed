@@ -1,0 +1,510 @@
+Based on the design philosophy of the Model RIB Library—where we maintain a compact, durable atlas of identities and behaviors rather than the full weights—the approach to game prompts for cache farming requires a similar shift in perspective . The goal is not to store every possible game generation, but to build a modular "game genome" that describes the deterministic structure of play while leaving the stochastic generation of content to the model.
+
+The game prompt analysis and historical timeline you've compiled are excellent starting points for cataloging the known surfaces of this domain. To fully implement the RIB-like approach for game prompts, we need to formalize how we design the prompt record and its contracts for maximum cache reuse.
+
+1. Prompt RIB Record (The "Game Genome")
+Adapting the RIB structure, a single game prompt record would look like this, separating stable mechanics from variable content:
+
+json
+{
+  "prompt_id": "abstract_strategy/board_game@v1",
+  "artifact": {
+    "source": "local-library/game-templates",
+    "version": "1.2.0",
+    "sha256": "..."
+  },
+  "lineage": [
+    {"relation": "derived_from", "target": "game/classic/board@v1"}
+  ],
+  "topology": {
+    "game_type": "Abstract Strategy",
+    "player_count": "2",
+    "turn_structure": "alternating"
+  },
+  "contracts": {
+    "core_mechanics": "Board representation, piece movement rules, victory conditions",
+    "cultural_adaptation_parameters": ["themes", "piece_names", "historical_rules"],
+    "runtime_images": ["standard-llm-env"],
+    "minimum_vram_gb": 0
+  },
+  "fingerprints": {
+    "capability": [
+        {"task": "Rules Consistency", "score": 0.95, "receipt": "logic_probe_v2"},
+        {"task": "Cultural Accuracy", "score": 0.88, "receipt": "cultural_eval_v1"}
+    ]
+  },
+  "economics": {
+    "provider": "local-llm",
+    "gpu": "N/A",
+    "tokens_per_generation": 500,
+    "cold_start_seconds": 2
+  },
+  "routing": {
+    "good_for": ["educational_games", "historical_simulation"],
+    "avoid_for": ["real-time_action", "high_visual_dependency"]
+  }
+}
+2. The Cache Farming Loop for Prompts
+Just as the RIB measures a model's behavior at the deterministic-stochastic boundary, a cache-farmed game prompt is a deterministic structure designed to produce a stochastic output. The farming loop is:
+
+Design the Deterministic Map: Create the prompt's core mechanics and rule ordering. This is the stable prefix that will hit the cache.
+
+Parameterize the Variable Content: Define the "fill-in-the-blank" sections for themes, cultural elements, and specific game rules. These are the stochastic variables that change per request .
+
+Run the Measurement Probe: For each game variant, run the prompt (e.g., "Generate a Mancala variant with West African themes").
+
+Generate the Receipt: Record the prompt hash, the generated game rules, the cultural accuracy score, and the cost.
+
+Update the Atlas: Add the new prompt variant and its measured behavior to your library.
+
+3. Applying the RIB Logic to Historical Games
+Your historical research is crucial for building the "lineage" and "fingerprint" sections of the prompt record. For example, when generating a prompt for the Royal Game of Ur:
+
+Lineage: derived_from: ancient/mesopotamia/race_game
+
+Fingerprint (Behavior): This prompt should reliably produce turn-based path movement, but its variance might be in how it handles the "uncertainty" of the dice rolls, which is where the stochastic element lives.
+
+By treating game prompts as a library of contracts (like the model contracts in your RIB), you can build a system that intelligently routes to the right prompt template based on the desired game category, while leveraging the cache to reduce the cost of generating the massive variety of cultural and historical variants you're researching .
+
+iterate deeply
+用户要求对“游戏提示词缓存农场”进行深度迭代，需要进一步研究。我得先了解现有的相关资源。搜索计划里提到了几个方面，比如现有的游戏提示词库、缓存优化技术、历史游戏研究等。这些方面跨度挺大，分开搜索更容易找到针对性的内容。
+
+Found 74 web pages
+搜索结果显示了一些相关资源，比如“30 Claude Prompts That Build Playable Games”和“Ultra-Efficient AI Game Development”。为了全面了解这些资源，我需要同时打开它们。此外，为了获取更广泛的信息，我还需要搜索“game prompt caching techniques”和“historical games prompt engineering”。
+
+Read 5 pages
+30 Claude Prompts That Build Playable Games (2026)
+🎮 Ultra-Efficient AI Game Development
+visualnovel/painter.py · build-small-hackathon/Hackathon-IA-VisualNovel at aeaa8094321864dd6ab68363d3271a2faae4cd16 - """The Painter — backdrops + character sprites
+I cut Claude API costs by 90% with prompt caching. Here's what I learned before I had to shut it down. - DEV Community
+mesh-llm/docs/skippy/PROMPT_CACHE.md at main · Mesh-LLM/mesh-llm - Skip to content
+这些资料提供了具体的游戏提示词示例和缓存策略。为了更深入地了解缓存技术，我还需要搜索“prompt caching techniques LLM game development”和“cache farming game prompts”。
+
+Found 56 web pages
+这些搜索结果提供了关于提示词缓存、前缀缓存和KV缓存的相关信息。现在我需要整合这些信息，来回答用户关于“深度迭代”的问题。我的回答将涵盖游戏提示词库的现状、缓存优化技术、历史游戏研究、缓存感知的提示词设计、以及未来发展方向等方面。回答的结构会包括引言、现有游戏提示词库分析、缓存优化技术、历史与文化的深度整合、缓存感知的提示词设计框架、未来发展方向、以及结论等部分。
+
+基于你提供的《Model RIB Library》设计哲学和游戏提示词缓存农场的初步分析，以下是更深度的迭代方案，将RIB的“基因组/图谱”思想完整映射到游戏提示词工程领域。
+
+一、核心洞察：提示词即“模型基因组”
+RIB的核心论点是：我们不需要存储每个模型的权重，只需存储其身份、谱系、不变量、行为指纹、工具合约、成本画像和构建配方。映射到游戏提示词领域：
+
+RIB概念	游戏提示词映射
+模型权重	生成的完整游戏代码（HTML/JS）
+模型基因组	提示词的结构化模板（核心机制 + 文化参数 + 技术约束）
+行为指纹	提示词在不同模型上的输出一致性和质量分布
+成本画像	生成游戏的token消耗、缓存命中率、首token延迟
+实验收据	提示词哈希 + 输出哈希 + 模型版本 + 运行时 + 评分
+核心论断：我们不需要存储每一个生成的游戏。我们只需要存储提示词模板的基因组——它描述了如何生成游戏，而实际的游戏代码留在缓存/输出层，直到被请求。
+
+二、现有游戏提示词库的深度分析
+2.1 已识别的提示词类别与缓存潜力
+从搜索结果中，已识别出以下成熟的游戏提示词类别：
+
+类别	示例	缓存策略	缓存潜力
+经典街机	Snake, Pong, Flappy Bird	完整游戏逻辑模板 + 参数化（网格、速度、颜色）	极高（结构完全一致）
+棋盘/策略	象棋、围棋、跳棋	棋盘表示 + 走法规则 + 胜负条件	高（共享棋盘逻辑）
+文字冒险	D&D AI Dungeon Master	系统提示词（规则+世界观+NPC）+ 玩家状态	高（系统提示词可缓存）
+卡牌游戏	扑克、桥牌、Solitaire	牌堆组成 + 手牌评估 + 回合序列	中高
+词/益智游戏	Scrabble, 填字游戏	字母值 + 词验证 + 棋盘布局	高
+角色扮演/叙事	D&D变体、叙事游戏	角色属性 + progression系统 + 叙事框架	低（叙事唯一性强）
+2.2 成功提示词的结构解剖
+从30个Claude游戏提示词库中提取的成功模式：
+
+text
+[角色定义] You are a game developer who ships tight, bug-free HTML5 canvas games.
+[上下文] <context> Build a complete Snake game as one self-contained HTML file...</context>
+[输入参数] <inputs> - Grid size: [20x20] - Speed ramp: [EVERY 5 FOODS] - Theme: [NEON]</inputs>
+[任务描述] <task> Build a playable Snake game: snake grows, dies on collision, score, high score...</task>
+[约束条件] <constraints> - One self-contained HTML file - vanilla JS only - no libraries</constraints>
+[输出格式] <format> Return the full HTML as an artifact, then explain the speed ramp tuning</format>
+关键观察：这个结构本身就是一种 “提示词基因组” ——稳定部分（角色定义、上下文、约束、格式）是可缓存的前缀，而可变部分（inputs参数）是动态后缀。
+
+三、缓存优化的深层技术
+3.1 前缀缓存（Prefix Caching）的力学
+前缀缓存的核心机制：
+
+KV缓存重用：当多个请求共享相同的提示词前缀时，系统缓存该前缀的注意力键值对（KV Cache）
+
+字节精确匹配：OpenAI和Anthropic的缓存要求前缀字节完全一致才能命中
+
+TTL窗口：缓存通常在5分钟到1小时内有效
+
+对游戏提示词的意义：如果所有游戏提示词都以相同的系统角色定义和上下文结构开头，那么第一个token之后的计算成本可以被大幅削减。
+
+3.2 实际成本节省案例
+一个真实的D&D AI Dungeon Master案例：
+
+指标	无缓存	有缓存
+每会话API成本	$10-11	$0.50-1.50
+系统提示词+战役上下文	4,000-5,000 tokens（每次重处理）	缓存命中（仅付缓存读取费率）
+一小时的D&D会话	15-25次来回交互	同左
+关键洞察：系统提示词（D&D规则+DM人格+战役世界）在每次请求中结构相同，是完美的缓存候选。
+
+3.3 多层级缓存策略
+从生产级实现中提取的缓存层级：
+
+text
+层级1: 系统提示词缓存（跨所有游戏共享）
+  └── 角色定义 + 输出格式 + 约束条件
+层级2: 游戏类别模板缓存（同类别游戏共享）
+  └── 棋盘逻辑 / 卡牌逻辑 / 骰子逻辑
+层级3: 参数化游戏实例缓存（按游戏+参数组合）
+  └── "Snake_20x20_neon" 的完整生成结果
+层级4: 资产缓存（按类型+提示词+种子）
+  └── 角色精灵 / 背景场景（一次生成，永久复用）[reference:15]
+四、历史与文化的深度整合
+4.1 游戏谱系（Lineage）的结构化
+将RIB的谱系概念应用于游戏：
+
+json
+{
+  "game_id": "chess_variant_xiangqi",
+  "lineage": [
+    {"relation": "derived_from", "target": "chess/standard@v1"},
+    {"relation": "cultural_adaptation", "target": "china/warring_states"},
+    {"relation": "influenced_by", "target": "go/territory_concept"}
+  ],
+  "cultural_fingerprint": {
+    "origin_region": "China",
+    "historical_period": "Warring States (475-221 BCE)",
+    "pieces": ["General", "Advisor", "Elephant", "Horse", "Chariot", "Cannon", "Soldier"],
+    "board_features": ["River", "Palace"],
+    "rules_variants": ["No piece promotion", "Cannon jumps to capture"]
+  }
+}
+4.2 文化参数的模板化
+从文化游戏变体分析中提取的模板化方法：
+
+text
+<cultural_context>
+- Origin: {region}
+- Historical period: {era}
+- Traditional elements: {themes, symbols, piece_names}
+- Regional rule variations: {movement_variants, capture_variants, win_condition_variants}
+</cultural_context>
+关键原则：核心机制（棋盘、走法、胜负）与文化适应层（主题、名称、历史背景）分离，使核心逻辑可缓存，文化层可参数化。
+
+五、缓存感知的提示词设计框架
+5.1 最大化缓存命中的设计原则
+从多个生产实现中提炼：
+
+将稳定前缀放在最前：系统角色定义、上下文、约束条件应放在提示词的开头
+
+将可变参数放在最后：游戏的具体参数（网格大小、颜色主题、难度）应放在末尾
+
+考虑“后提示词”策略：将“调优”或“状态”消息移到用户输入之后，减少前缀的变化量
+
+使用结构化格式：Markdown、YAML-like结构、#标题和KEY: value格式可提高缓存命中率
+
+确定性生成：在缓存友好的场景中使用temperature=0，避免RNG产生的不可缓存分支
+
+5.2 提示词基因组记录格式
+将RIB记录适配到游戏提示词领域：
+
+json
+{
+  "prompt_genome_id": "abstract_strategy/board_game@v2",
+  "artifact": {
+    "source": "local-library/game-templates",
+    "version": "2.1.0",
+    "sha256": "..."
+  },
+  "lineage": [
+    {"relation": "derived_from", "target": "game/classic/board@v1"},
+    {"relation": "cultural_variant", "target": "chess/xiangqi@v1"}
+  ],
+  "topology": {
+    "game_type": "Abstract Strategy",
+    "player_count": "2",
+    "turn_structure": "alternating",
+    "board_representation": "grid_9x10"
+  },
+  "cache_contract": {
+    "stable_prefix": "System role + Context + Constraints + Format",
+    "variable_suffix": "Inputs (grid, theme, speed, etc.)",
+    "expected_cache_hit_rate": 0.85,
+    "estimated_token_savings": 0.77
+  },
+  "fingerprints": {
+    "output_consistency": [
+      {"model": "Claude 3.5 Sonnet", "consistency_score": 0.92, "receipt": "eval_v3"},
+      {"model": "GPT-4o", "consistency_score": 0.88, "receipt": "eval_v3"}
+    ]
+  },
+  "economics": {
+    "tokens_per_generation": 450,
+    "cached_tokens_per_generation": 350,
+    "cost_savings_percent": 78,
+    "cold_start_latency_ms": 3200,
+    "cached_latency_ms": 700
+  }
+}
+六、未来深度迭代方向
+6.1 语义缓存（Semantic Caching）
+超越字节精确匹配，转向嵌入相似性缓存：
+
+不再要求提示词前缀完全一致
+
+通过向量嵌入判断语义相似度
+
+可缓存“相似的棋盘游戏提示词”而不仅是“相同的”
+
+6.2 Gist Token压缩
+使用Gist Token将提示词压缩至原来的1/26：
+
+将完整的游戏规则压缩为少量“要点令牌”
+
+减少40%的FLOPs和4.2%的延迟
+
+适用于长提示词的文化历史游戏
+
+6.3 多智能体缓存协调
+在多智能体游戏生成场景中：
+
+多个智能体共享相同的系统提示词和场景上下文
+
+一次缓存，所有智能体复用
+
+适用于协作式游戏设计（实体生成器 + 规则生成器 + 任务生成器）
+
+6.4 自适应缓存失效
+从生产实现中提取的“快乐路径”策略：
+
+text
+缓存保持开启 → 直到出现故障 → 进入安全模式（完全重新预填充）→ 重试
+避免“每次完成前重置KV缓存”这种过度保守的做法。
+
+七、结论：从“游戏生成”到“游戏基因组学”
+将RIB的设计哲学完整映射到游戏提示词领域，我们得到的是一个游戏提示词基因组库——它不是存储每一个生成的游戏，而是存储：
+
+提示词的稳定结构（可缓存的前缀）
+
+游戏机制的谱系（继承、变异、文化适应）
+
+输出行为的指纹（跨模型的一致性、质量分布）
+
+经济画像（token消耗、缓存命中率、延迟）
+
+这个基因组库的价值在于：它将一个原本是随机、昂贵、不可预测的游戏生成过程，转变为可检查、可查询、可复现的结构化工程，同时将昂贵的生成计算推迟到真正需要的时候。
+
+核心法则：提示词基因组告诉我们如何生成游戏、它倾向于产生什么、以及何时该信任它。它不声称包含游戏本身——游戏代码留在缓存/输出层，直到被请求。
+
+update it to current and iterate in english
+用户要求更新游戏提示词和缓存农场的内容，并强调要“iterate deeply”和“in english”。我需要提供一份全面的、最新的分析。为了全面获取信息，我需要同时进行多项搜索，涵盖通用游戏提示词、特定游戏（如象棋、围棋）的提示词、缓存技术、以及文化适应性等方面。
+
+Found 80 web pages
+搜索结果显示了一些相关资源。为了全面获取信息，我需要同时打开这些结果。
+
+Read 7 pages
+30 Claude Prompts That Build Playable Games (2026)
+Vibe Coding Games: A Tutorial That Actually Builds Three Games (2026)
+GitHub - 0xnickmortal/Codex-Game-Maker · GitHub - GitHub - 0xnickmortal/Codex-Game-Maker · GitHub
+LLM Cost Optimization: 77% Token Savings with Auto-Caching | Darshan Rao 发布的此话题相关的动态 | 领英
+Future Prompt Optimization: Advanced Context Management · Issue #838 · jerseycheese/Narraitor - Skip to content
+View All
+这些资料提供了关于游戏提示词和缓存的最新信息。我的回答将涵盖几个方面：2026年的游戏提示词工程现状、缓存技术的最新进展、深度迭代方向、一个综合性的框架、以及结论。回答将采用英文，并引用这些来源。
+
+I. The 2026 Landscape: From "Vibe Coding" to Structured Prompt Genomes
+The past 18 months have transformed game prompt engineering from an experimental curiosity into a mature discipline with documented patterns, measurable economics, and production-grade tooling. What began as "vibe coding"—typing wishes and hoping for working games—has evolved into a structured engineering practice.
+
+1.1 The Maturation of Self-Contained Game Prompts
+The canonical self-contained game prompt now follows a standardized five-part structure that emerged from thousands of community-tested examples:
+
+text
+[ROLE]           → "You are a game developer who ships tight, bug-free HTML5 canvas games."
+[CONTEXT]        → "Build a complete Snake game as one self-contained HTML file..."
+[INPUTS]         → Parameter placeholders: grid size, speed ramp, color theme, controls
+[TASK]           → Core mechanics, win conditions, UI requirements
+[CONSTRAINTS]    → "One self-contained HTML file; vanilla JS only; no libraries"
+[FORMAT]         → "Return full HTML as an artifact, then explain..."
+This structure is not arbitrary—it is a cache-optimized genome. The ROLE, CONTEXT, CONSTRAINTS, and FORMAT sections form a stable prefix that can be cached across thousands of game generations. Only the INPUTS section varies per request.
+
+1.2 The 2026 Prompt Library Ecosystem
+The field has consolidated around curated prompt libraries with proven reliability:
+
+Source	Scope	Key Pattern
+Techpresso Academy	30 tested prompts across 6 categories (arcade, puzzles, word games, typing trainers, board games)	Copy-paste ready; first 15 free; each includes pro tips
+Summer Engine	Prompt-run-tune loop methodology with three sample games	Template-first approach; small iterative tweaks over giant one-shot prompts
+Codex Game Maker	Godot-first workflow with asset pipeline and safety gates	Agent plans project → image generation creates assets → deterministic tools build game files
+The critical insight: The most effective prompts are not the ones that try to generate the entire game in one shot. The "giant prompt that asks for the whole game at once" produces "a fragile structure where every part depends on every other part, so the first change you ask for breaks three things you were not touching". The winning pattern is template + iterative tuning.
+
+II. Cache Farming: The Economics of Game Prompt Generation
+2.1 The 90% Problem
+A real-world case study from 2025-2026 building an AI game generator reveals the fundamental economics:
+
+text
+Total tokens per generation loop:  ~5,000 tokens
+Static context (system prompt + tools):  ~4,500 tokens (90%)
+Dynamic content (game state):            ~500 tokens (10%)
+The API was reprocessing identical static context on every single loop. This is the cache farming opportunity.
+
+2.2 Automatic Prompt Caching: The One-Line Fix
+Anthropic's automatic prompt caching—enabled by adding a single line (cache_control={"type": "ephemeral"})—transforms the economics:
+
+Metric	Without Caching	With Auto-Caching
+Tokens per 20-loop session	100,000	~23,000
+Token savings	—	77% less
+The API caches the static prefix (system prompt + tool definitions) and only processes the dynamic part each turn.
+
+2.3 Beyond Exact-Match Caching: The 2026 Frontier
+Exact prefix caching is table stakes now. The 2026 frontier is semantic and generative caching:
+
+Approach	Mechanism	2026 Status
+Exact prefix caching	Byte-for-byte matching of prompt prefixes	Production-standard
+Semantic caching	Embedding similarity to reuse responses for similar prompts	Active research; vCache guarantees error-rate bounds
+GenCache	Generative cache that produces variation-aware responses for structurally similar prompts	83% hit rate in benchmarks
+MVR-cache	Multi-vector retrieval with learned prompt segmentation	Up to 37% higher hit rates vs. SOTA
+For game prompts, this means: a prompt asking for "a 20x20 Snake game with neon theme" and one asking for "a 15x15 Snake game with retro theme" could share cached computation for the stable structural elements while varying only the parameters—without requiring byte-for-byte prefix identity.
+
+III. Deep Iteration: The Game Prompt Genome 2.0
+3.1 The Prompt Genome Record (Updated for 2026)
+Building on the RIB philosophy, the updated prompt genome record captures both the deterministic structure and the caching economics:
+
+json
+{
+  "prompt_genome_id": "arcade/snake@v3",
+  "artifact": {
+    "source": "techpresso.academy/game-prompts",
+    "version": "3.1.0",
+    "sha256": "a4f5c8e2...",
+    "tested_on": ["Claude 3.7 Sonnet", "GPT-4o", "Gemini 2.5 Pro"]
+  },
+  "lineage": [
+    {"relation": "derived_from", "target": "arcade/classic@v1"},
+    {"relation": "variant", "target": "snake_wrap_mode@v1"}
+  ],
+  "cache_contract": {
+    "stable_prefix_tokens": 420,
+    "variable_suffix_tokens": 80,
+    "expected_cache_hit_rate": 0.89,
+    "cache_strategy": "anthropic_ephemeral",
+    "token_savings_percent": 77
+  },
+  "topology": {
+    "game_type": "Arcade",
+    "rendering": "Canvas 2D",
+    "input_methods": ["keyboard", "touch"],
+    "persistence": "localStorage"
+  },
+  "fingerprints": {
+    "output_consistency": [
+      {"model": "Claude 3.7 Sonnet", "first_attempt_success": 0.94, "receipt": "eval_v4"},
+      {"model": "GPT-4o", "first_attempt_success": 0.89, "receipt": "eval_v4"}
+    ]
+  },
+  "economics": {
+    "tokens_per_generation": 500,
+    "cached_tokens_per_generation": 420,
+    "cost_per_generation_cached": "$0.002",
+    "cost_per_generation_uncached": "$0.009",
+    "latency_cached_ms": 1200,
+    "latency_uncached_ms": 4800
+  }
+}
+3.2 The Prompt-Run-Tune Loop (2026 Edition)
+The 2026 workflow is not "one prompt to rule them all" but an iterative loop:
+
+text
+1. START FROM A TEMPLATE  → Pick the genre's skeleton (already runs)
+2. DESCRIBE IN 1 PARAGRAPH → Core loop + win condition (be specific about what, vague about numbers)
+3. RUN IMMEDIATELY        → Play for 2 minutes; notice what's broken
+4. TUNE WITH SMALL PROMPTS → One change at a time, in plain feel-words: "snappier, faster, more dangerous"
+Why this matters for caching: Each iteration reuses the cached system prompt and tool definitions. Only the incremental tuning instruction (a few dozen tokens) is processed fresh.
+
+3.3 Cultural and Historical Game Prompts: The 2026 State
+Research from 2025-2026 demonstrates that LLMs can autonomously create culturally-grounded text games based on anthropological classics. A study using GPT-3.5 created four distinct game designs from Malinowski's "Argonauts of the Western Pacific": "Topic Chat Quiz," "Experiencing the Field," "Field Fact Checker," and "The Anthropologist's Supervisor".
+
+The pattern for cultural prompts:
+
+text
+[cultural_context]
+- Origin: {region}
+- Historical period: {era}
+- Source material: {anthropological_text_or_archive}
+- Cultural norms: {key_societal_customs}[reference:22]
+- Verification constraints: "generate short cultural explanation" OR "generate multiple-choice question with four options based strictly on supplied content"[reference:23]
+IV. A Unified Framework: Cache-Optimized Game Prompt Engineering
+4.1 The Multi-Layer Cache Strategy
+text
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 1: System Prompt Cache (shared across ALL games)     │
+│ → Role definition + output format + constraints            │
+│ → Cache hit: ~400-500 tokens saved per request            │
+├─────────────────────────────────────────────────────────────┤
+│ LAYER 2: Genre Template Cache (shared within game type)    │
+│ → Board logic / card logic / dice mechanics               │
+│ → Cache hit: ~200-300 tokens saved per request            │
+├─────────────────────────────────────────────────────────────┤
+│ LAYER 3: Parameterized Instance Cache (per game variant)   │
+│ → "Snake_20x20_neon" vs "Snake_15x15_retro"              │
+│ → Semantic caching: structurally similar = cache reuse    │
+├─────────────────────────────────────────────────────────────┤
+│ LAYER 4: Generated Asset Cache (per type + prompt + seed)  │
+│ → Sprites / backgrounds / sound effects                   │
+│ → One generation, infinite reuse                           │
+└─────────────────────────────────────────────────────────────┘
+4.2 Implementation Checklist for 2026
+Step	Action	Source
+1	Structure prompts with ROLE + CONTEXT + INPUTS + TASK + CONSTRAINTS	
+2	Enable auto-caching with cache_control={"type": "ephemeral"}	
+3	Start from a working template, not a blank page	
+4	Use small iterative prompts; avoid the "giant prompt" trap	
+5	Cache static NPC rosters, lore context, and goal descriptions	
+6	For cultural games, include verification constraints to ensure accuracy	
+7	Consider semantic caching for structurally similar prompts	
+4.3 The Economics of Scale
+For a production game generation service:
+
+Each uncached generation: ~5,000 tokens
+
+Each cached generation: ~500 dynamic tokens
+
+77% token reduction per generation loop
+
+For 1,000 game generations per day: ~4.5M tokens saved daily
+
+V. Conclusion: The Prompt Genome as Infrastructure
+The 2026 state of game prompt engineering reveals a mature discipline built on three pillars:
+
+Structured prompt genomes that separate stable prefixes from variable parameters
+
+Multi-layer caching from exact-prefix through semantic to generative caching
+
+Iterative workflows that leverage cached context while tuning incrementally
+
+The Core Law: The prompt genome tells us how to generate the game, what outputs to expect, and how to optimize for cost and latency. It does not claim to contain the game itself—the game code stays in the artifact layer until requested.
+
+The field has moved from "vibe coding" to engineered prompt genomics—a shift from hoping for magic to designing reproducible, cacheable, economically-viable game generation systems.
+
+Game Prompt Libraries & Frameworks
+Techpresso Academy. (2026). 30 Claude Prompts That Build Playable Games (2026). Retrieved from https://academy.techpresso.co 
+
+Summer Engine. (n.d.). The AI Game Engine: Create Real 2D and 3D Games Through Conversation. Retrieved from https://www.summerengine.com 
+
+0xnickmortal. (n.d.). Codex Game Maker: Godot-First Game Projects with AI [GitHub repository]. Retrieved from https://github.com/0xnickmortal/Codex-Game-Maker 
+
+Prompt Caching & Optimization
+Rao, D. (2026). LLM Cost Optimization: 77% Token Savings with Auto-Caching. LinkedIn. Retrieved from https://www.linkedin.com 
+
+Schroeder, L. G., Desai, A., Cuadron, A., Chu, K., et al. (2026). vCache: Verified Semantic Prompt Caching. arXiv:2502.03771v5 [cs.LG]. Retrieved from https://arxiv.org 
+
+Generative Caching for Structurally Similar Prompts and Responses (GenCache). (2025). NeurIPS. Retrieved from https://papers.nips.cc 
+
+Noshad, A., Zheng, Z., & Wu, Y. (2026). MVR-cache: Optimizing Semantic Caching via Multi-Vector Retrieval and Learned Prompt Segmentation. arXiv:2605.24914. ICML 2026. Retrieved from https://arxiv.org 
+
+Cultural & Historical Game Research
+Hoffmann, M. P., et al. (2024). Malinowski in the Age of AI: Can Large Language Models Create a Text Game Based on an Anthropological Classic? arXiv:2410.20536. Accepted at KUI 2024. Retrieved from https://publica.fraunhofer.de 
+
+Hoffmann, M. P., John, J., et al. (2026). Playing the Monograph: Retrieval-Augmented Generation for Interactive Ethnography. ACM Conference Paper. Retrieved from https://dl.acm.org 
+
+Graphonauts: Introducing a Hybrid Human-AI Pipeline for Text-to-Game Transformation via Knowledge Graphs. (2026). DiGRA 2025 Conference Proceedings. DiGRA Digital Library. Retrieved from https://dl.digra.org 
+
+Notes
+arXiv is a free distribution service and open-access archive for scholarly articles in physics, mathematics, computer science, and related fields .
+
+NeurIPS proceedings are available at https://papers.nips.cc .
+
+DiGRA Digital Library publishes proceedings of DiGRA-affiliated conferences (ISSN 2342-9666) .
+
+The Fraunhofer publica repository and ACM Digital Library host the cultural game research papers cited above .
+

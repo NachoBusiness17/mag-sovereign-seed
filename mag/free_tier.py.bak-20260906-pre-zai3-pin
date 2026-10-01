@@ -1,0 +1,165 @@
+"""free_tier — the registry for ALL our free compute surfaces (2026-08-25).
+
+Operator: "its kinda the same problem with our free tier and everything." Same as the
+offerings registry: every lane/provider/account is its own being (own quota, own admission
+codes, own speed, own failure mode) and they don't map. This is THE MAP: which free surfaces
+exist, which are alive RIGHT NOW (key present, not quota-exhausted, not dying), what each is
+best for, and how to route intent to the best body — grounded in real lane telemetry
+(fuel_feed PROFILE), not a fixed list.
+
+Status reads real bytes: providers.yaml (key env presence), the lane profile (ok-rate +
+failure reasons), and the live lane list. route() skips dead/dying/exhausted lanes and picks
+by intent: fast -> groq/cerebras; strong -> nvidia/a1; cache-mined cheap -> z_ai flash;
+reasoning -> ox (while it lives); local -> ollama.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+
+
+def _env() -> None:
+    try:
+        from models.env_load import load_dotenv
+        load_dotenv()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _lane_profile() -> dict[str, dict[str, Any]]:
+    """Real telemetry from fuel_feed's per-lane reliability ledger."""
+    try:
+        from mag import fuel_feed as f
+        p = f.profile()
+        return {k: v for k, v in (p.get("lanes") or {}).items()}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _key_present(env_names: list[str]) -> bool:
+    for n in env_names:
+        if os.environ.get(n, "").strip():
+            return True
+    return False
+
+
+# ── THE FREE BODIES (grounded in providers.yaml + fuel_feed + this session) ─────────────
+FREE_SURFACES: list[dict[str, Any]] = [
+    {"id": "z_ai3", "models": ["glm-4.7-flash", "glm-4.5-flash"], "keys": ["ZAI_API_KEY_Lite"],
+     "tier": "T2", "kind": "cache_mining", "speed": "medium", "strength": "medium",
+     "best_for": ["cache_mined_self", "cheap_bulk", "daily_agentic"],
+     "note": "funded Lite API (not coding-plan). coding-plan Max/Lite hang on raw /paas/v4 — burst deepseek"},
+    {"id": "groq", "models": [], "keys": ["GROQ_API_KEY"], "tier": "T2", "kind": "fast",
+     "speed": "fast", "strength": "medium", "best_for": ["fast_bulk", "cheap_bulk"],
+     "note": "~1.9s/call at 91% ok — the fast lane"},
+    {"id": "cerebras", "models": [], "keys": ["CEREBAS_API_KEY"], "tier": "T2", "kind": "fast",
+     "speed": "fast", "strength": "medium", "best_for": ["fast_bulk"],
+     "note": "gpt-oss-120b, ~3000 tok/s"},
+    {"id": "nvidia", "models": ["deepseek-v4-flash-0731"], "keys": ["NVIDIABuild-Autogen-46"],
+     "tier": "T2", "kind": "strong", "speed": "slow", "strength": "high",
+     "best_for": ["strong_bulk"], "note": "free build credits; telemetry showed 'quota exhausted'" },
+    {"id": "openrouter-a1", "models": ["openrouter/auto"], "keys": ["OPENROUTER_API_KEY"],
+     "tier": "T2", "kind": "strong", "speed": "medium", "strength": "high",
+     "best_for": ["strong_bulk", "research"], "note": "account 1, funded"},
+    {"id": "openrouter-a2", "models": ["openrouter/auto"], "keys": ["OPENROUTER_API_KEY_2"],
+     "tier": "T2", "kind": "strong", "speed": "medium", "strength": "high",
+     "best_for": ["strong_bulk"], "note": "account 2, free tier; rotate with a1"},
+    {"id": "ox", "models": [], "keys": ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2"],
+     "tier": "T2", "kind": "reasoning", "speed": "slow", "strength": "high",
+     "best_for": ["deep_reasoning"], "note": "stealth/ox-alpha FREE seat — GOING AWAY (429 upstream); 60% ok"},
+    {"id": "together", "models": [], "keys": ["TOGETHER_API_KEY"], "tier": "T2", "kind": "bulk",
+     "speed": "medium", "strength": "medium", "best_for": ["bulk"], "note": "key missing in .env"},
+    {"id": "ollama", "models": [], "keys": [], "tier": "T1", "kind": "local", "speed": "local",
+     "strength": "low", "best_for": ["local", "private", "no_key"], "note": "local gemma4/qwen; $0"},
+    {"id": "coding_plan", "models": ["glm-5.3", "glm-5-turbo", "glm-4.7"], "keys": ["ZAI_API_KEY"],
+     "tier": "T2", "kind": "frontier", "speed": "medium", "strength": "frontier",
+     "best_for": ["frontier_coding", "deep_work"], "note": "Lite 2k/5h; dedicated quota; NOT free but cheap+cache-hit"},
+    {"id": "grok_free", "models": [], "keys": [], "tier": "T2", "kind": "frontier",
+     "speed": "slow", "strength": "frontier", "best_for": ["escalation", "frontier"],
+     "note": "CLI harness (proven transport); subscription seat, $0"},
+]
+
+
+def status() -> dict[str, Any]:
+    """Who's alive right now: key present + not dead, with real lane telemetry folded in."""
+    _env()
+    profile = _lane_profile()
+    rows = {}
+    for s in FREE_SURFACES:
+        key_ok = _key_present(s.get("keys", [])) if s.get("keys") else True
+        tele = profile.get(s["id"], {})
+        ok_rate = None
+        fails = []
+        if tele:
+            calls = int(tele.get("calls", 0))
+            ok = int(tele.get("ok", 0))
+            ok_rate = round(ok / calls, 3) if calls else None
+            fails = [e for e in (tele.get("errors") or [])][:2]
+        rows[s["id"]] = {
+            "key_present": key_ok,
+            "kind": s.get("kind"),
+            "speed": s.get("speed"),
+            "strength": s.get("strength"),
+            "ok_rate": ok_rate,
+            "fail_hints": fails,
+            "best_for": s.get("best_for", []),
+        }
+    return {"ok": True, "schema": "free_tier.v1", "n_surfaces": len(FREE_SURFACES), "surfaces": rows}
+
+
+def route(intent: str) -> list[str]:
+    """Best free surface(s) for an intent, SKIPPING dead/dying/exhausted bodies."""
+    _env()
+    profile = _lane_profile()
+    intent = (intent or "").lower()
+    alive = []
+    for s in FREE_SURFACES:
+        if s.get("keys") and not _key_present(s.get("keys", [])):
+            continue  # no key -> not alive
+        tele = profile.get(s["id"], {})
+        calls = int(tele.get("calls", 0))
+        ok = int(tele.get("ok", 0))
+        if calls >= 5 and ok / calls < 0.5:
+            continue  # dying/exhausted (real telemetry)
+        alive.append(s)
+
+    def _ok(s: dict) -> float:
+        tele = profile.get(s["id"], {})
+        calls = int(tele.get("calls", 0))
+        if not calls:
+            return 0.0  # no telemetry yet — treated as fresh/unknown, not best
+        return int(tele.get("ok", 0)) / calls
+
+    def pick(ordered_kinds: tuple[str, ...], n: int = 2) -> list[str]:
+        """Order by KIND first (the intent's specialty), then by reliability within kind."""
+        def key(s: dict):
+            kind = s["kind"]
+            idx = ordered_kinds.index(kind) if kind in ordered_kinds else len(ordered_kinds)
+            return (idx, -_ok(s), s["id"])
+        ordered = sorted(alive, key=key)
+        return [s["id"] for s in ordered[:n]]
+
+    if any(k in intent for k in ("fast", "speed")):
+        return pick(("fast",))
+    if any(k in intent for k in ("reason", "deep", "frontier")):
+        return pick(("reasoning", "frontier", "strong"), n=2)
+    if any(k in intent for k in ("cache", "cheap", "daily", "bulk", "agentic")):
+        return pick(("cache_mining", "fast", "bulk"), n=2)
+    if any(k in intent for k in ("code", "coding", "build")):
+        return pick(("frontier", "strong", "cache_mining"), n=2)
+    if any(k in intent for k in ("local", "private")):
+        return pick(("local",))
+    return pick(("cache_mining", "fast", "strong"), n=2)
+
+
+if __name__ == "__main__":
+    import sys
+    arg = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if arg == "status":
+        print(json.dumps(status(), indent=2, ensure_ascii=False))
+    else:
+        print(json.dumps({"intent": arg, "surfaces": route(arg)}, indent=2))

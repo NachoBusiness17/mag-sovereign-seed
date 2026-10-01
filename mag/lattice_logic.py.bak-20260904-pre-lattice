@@ -1,0 +1,253 @@
+"""Lattice logic — the one organ that walks every lattice we own.
+
+The fleet keeps building lattices (rule lattices, invariant registries, law registries,
+light fields, knot graphs) and each one grows a bespoke reader. This organ is the single
+logic tool over all of them:
+
+  list      — what lattices exist, how many entries, what family
+  show      — one lattice, summarized
+  query     — filter entries without any model (exact / contains / numeric compare)
+  walk      — the DUMB STEPPER: entries one at a time, N per call (the 70-step ladder)
+  chain     — forward-chain the LAW registry's condition/action rules against a facts dict
+  export    — any lattice → JSON at dashboard/static/lattices/ (feeds the Android day tool)
+
+LAW (steering rigs, 09-04): structure lives in the lattice; execution stays dumb. One step
+per call — a flash-tier model, a button, or a human can drive the same walk.
+
+Ownership: READ-ONLY over registries owned by other organs (mag/percolator.py owns
+invariants.json, mag/law.py owns law/registry.json, mag/verkle_knot.py owns the chain).
+Writes land only in dashboard/static/lattices/ (mirrors) — never in the source registries.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+STATIC_LATTICES = REPO / "dashboard" / "static" / "lattices"
+
+# family: registry (dict-of-entries) | array | rule_md (markdown rule blocks)
+#         field (numeric grid) | jsonl (graph/store lines)
+LATTICES: dict[str, dict] = {
+    "invariants": {"path": "memory/percolator/invariants.json", "family": "registry"},
+    "law":        {"path": "memory/law/registry.json", "family": "registry"},
+    "problems":   {"path": "memory/runs/problem_knot/registry.json", "family": "registry"},
+    "shadertoy":  {"path": "docs/ref/shadertoy_rule_lattice.md", "family": "rule_md"},
+    "game_mech":  {"path": "watch/GAME_MECHANICS_LATTICE_20260903.md", "family": "rule_md"},
+    "field":      {"path": "watch/steer_field/FIELD.json", "family": "field"},
+    "lattice_store": {"path": "memory/lattice/nodes.jsonl", "family": "jsonl"},
+    # referenced by 12+ intake cards but NOT on disk yet (committed-unlanded) — pending, not broken
+    "field_smith": {"path": "watch/field_smith.json", "family": "field", "pending": True},
+}
+
+
+def _entries_registry(obj: dict) -> list[dict]:
+    # invariants.json: {"invariants": {hash: {...}}}; law: {LAW-N: {...}}; problems: {"problems": {...}}
+    for key in ("invariants", "problems"):
+        if isinstance(obj.get(key), dict):
+            return [dict(v, _key=k) for k, v in obj[key].items()]
+    return [dict(v, _key=k) for k, v in obj.items() if isinstance(v, dict)]
+
+
+def _entries_array(obj) -> list[dict]:
+    if isinstance(obj, list):
+        return [v if isinstance(v, dict) else {"value": v} for v in obj]
+    for key in ("lights", "occluders", "rules", "entries", "nodes", "items", "edges"):
+        if isinstance(obj.get(key), list):
+            return [dict(v, _key=key) if isinstance(v, dict) else {"value": v}
+                    for v in obj[key]]
+    raise ValueError("no list found under common keys")
+
+
+_RULE_BLOCK = re.compile(r"\*\*RULE:\*\*\s*(.+?)(?=\*\*(?:SOURCE|FLEET USE|RULE):|\Z)", re.S)
+
+
+def _entries_rule_md(text: str) -> list[dict]:
+    rules = []
+    for m in _RULE_BLOCK.finditer(text):
+        body = m.group(1).strip()
+        # first line is the rule name/statement, rest is the spec
+        lines = [l.strip() for l in body.splitlines() if l.strip()]
+        name = lines[0].strip("*` ").rstrip("—-:")
+        rules.append({"_key": name, "rule": name, "spec": " ".join(lines[1:])[:400]})
+    if not rules:
+        raise ValueError("no **RULE:** blocks found (markdown family needs them)")
+    return rules
+
+
+def load(name: str) -> dict:
+    """Load a lattice → {"name", "family", "path", "entries", "count"}."""
+    spec = LATTICES.get(name)
+    if spec is None:
+        raise KeyError(f"unknown lattice {name!r}; known: {', '.join(LATTICES)}")
+    path = REPO / spec["path"]
+    if not path.exists():
+        state = "PENDING (committed, not landed)" if spec.get("pending") else "MISSING"
+        raise FileNotFoundError(f"{name}: {state} at {spec['path']}")
+    family = spec["family"]
+    if family == "rule_md":
+        entries = _entries_rule_md(path.read_text(encoding="utf-8"))
+    elif family == "jsonl":
+        entries = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    else:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        entries = _entries_registry(obj) if family == "registry" else _entries_array(obj)
+    return {"name": name, "family": family, "path": spec["path"],
+            "entries": entries, "count": len(entries)}
+
+
+def query(name: str, where: str | None = None, limit: int = 10) -> list[dict]:
+    """where: comma-separated clauses field=exact | field~contains | field<numeric | field>numeric"""
+    lat = load(name)
+    entries = lat["entries"]
+    if where:
+        for clause in where.split(","):
+            clause = clause.strip()
+            m = re.match(r"([\w_]+)\s*(=~|~|>=|<=|>|<|=)\s*(.+)", clause)
+            if not m:
+                raise ValueError(f"bad clause {clause!r} (use f=v, f~v, f>v, f<v)")
+            field, op, val = m.group(1), m.group(2), m.group(3).strip()
+            def test(e: dict, field=field, op=op, val=val) -> bool:
+                fv = e.get(field)
+                if fv is None:
+                    return False
+                if op in ("=", "=="):
+                    return str(fv) == val
+                if op in ("~", "=~"):
+                    return val.lower() in str(fv).lower()
+                try:
+                    fv2 = float(fv)
+                    v2 = float(val)
+                except (TypeError, ValueError):
+                    return False
+                return {"<": fv2 < v2, ">": fv2 > v2, "<=": fv2 <= v2, ">=": fv2 >= v2}[op]
+            entries = [e for e in entries if test(e)]
+    return entries[:limit]
+
+
+def step_card(entry: dict, i: int) -> str:
+    head = entry.get("_key") or entry.get("id") or entry.get("name") or entry.get("rule") or "?"
+    detail = (entry.get("text") or entry.get("condition") or entry.get("action")
+              or entry.get("spec") or entry.get("label") or entry.get("value") or "")
+    return f"[{i+1:03d}] {str(head)[:70]} — {str(detail)[:120]}"
+
+
+def walk(name: str, n: int = 70, offset: int = 0) -> list[str]:
+    """The dumb stepper: N entries as step cards, one line each. The 70-step ladder default."""
+    lat = load(name)
+    entries = lat["entries"][offset: offset + n]
+    return [step_card(e, offset + i) for i, e in enumerate(entries)]
+
+
+# ---- forward chain over the LAW registry (no model anywhere) ----
+
+def _condition_ok(cond: str | None, facts: dict) -> bool:
+    if not cond or cond.strip().lower() in ("always", "*", "true"):
+        return True
+    # support 'key=value', 'key>num', 'key<num', 'key~substr' joined by AND (case-insensitive)
+    for clause in re.split(r"\s+and\s+|&&", cond, flags=re.I):
+        m = re.match(r"\s*([\w_]+)\s*(=~|~|>=|<=|>|<|=)\s*(.+?)\s*$", clause)
+        if not m:
+            continue  # prose condition: not machine-checkable, does not fire blind
+        f, op, v = m.group(1), m.group(2), m.group(3)
+        fv = facts.get(f)
+        if fv is None:
+            return False
+        if op in ("=", "==") and str(fv) != v:
+            return False
+        if op in ("~", "=~") and v.lower() not in str(fv).lower():
+            return False
+        try:
+            if op == ">" and not float(fv) > float(v): return False
+            if op == "<" and not float(fv) < float(v): return False
+            if op == ">=" and not float(fv) >= float(v): return False
+            if op == "<=" and not float(fv) <= float(v): return False
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
+def chain(facts: dict, lattice: str = "law") -> list[dict]:
+    """Forward-chain the law registry against facts → fired rules with actions+guardrails."""
+    lat = load(lattice)
+    fired = []
+    for e in lat["entries"]:
+        trig = str(e.get("trigger") or "")
+        trig_hit = not trig or any(t.lower() in str(v).lower()
+                                   for t in re.split(r"[|,;/ ]+", trig) if t
+                                   for v in facts.values()) if trig else True
+        if trig_hit and _condition_ok(e.get("condition"), facts):
+            fired.append({"law": e.get("_key"), "name": e.get("name"),
+                          "action": e.get("action"), "guardrail": e.get("guardrail")})
+    return fired
+
+
+def export(name: str) -> Path:
+    """Mirror any lattice as JSON into dashboard/static/lattices/ (the Android day tool door)."""
+    lat = load(name)
+    STATIC_LATTICES.mkdir(parents=True, exist_ok=True)
+    out = STATIC_LATTICES / f"{name}.json"
+    out.write_text(json.dumps(
+        {"schema": "lattice_logic.v1", "name": name, "family": lat["family"],
+         "source": lat["path"], "count": lat["count"], "entries": lat["entries"]},
+        indent=1, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(prog="lattice-logic", description=__doc__.splitlines()[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("list", help="catalog + counts")
+    s = sub.add_parser("show", help="one lattice summarized"); s.add_argument("name")
+    s = sub.add_parser("query", help="filter entries"); s.add_argument("name")
+    s.add_argument("--where"); s.add_argument("--limit", type=int, default=10)
+    s = sub.add_parser("walk", help="dumb-stepper: N step cards"); s.add_argument("name")
+    s.add_argument("-n", type=int, default=70); s.add_argument("--offset", type=int, default=0)
+    s = sub.add_parser("chain", help="forward-chain LAW registry against facts JSON")
+    s.add_argument("facts", help='path or inline JSON, e.g. \'{"queue_depth": 40}\'')
+    s = sub.add_parser("export", help="mirror lattice → dashboard/static/lattices/"); s.add_argument("name")
+    a = p.parse_args(argv)
+
+    if a.cmd == "list":
+        for name, spec in LATTICES.items():
+            try:
+                lat = load(name)
+                print(f"{name:14s} {lat['family']:8s} {lat['count']:>5d}  {spec['path']}")
+            except (FileNotFoundError, ValueError, KeyError, json.JSONDecodeError) as exc:
+                print(f"{name:14s} {spec['family']:8s}     -  {spec['path']}  [{exc}]")
+        return 0
+    if a.cmd == "show":
+        lat = load(a.name)
+        print(f"{lat['name']} — {lat['family']} — {lat['count']} entries — {lat['path']}")
+        for line in walk(a.name, 5):
+            print(line)
+        return 0
+    if a.cmd == "query":
+        for e in query(a.name, a.where, a.limit):
+            print(json.dumps(e, ensure_ascii=False)[:300])
+        return 0
+    if a.cmd == "walk":
+        for line in walk(a.name, a.n, a.offset):
+            print(line)
+        return 0
+    if a.cmd == "chain":
+        facts = (json.loads(Path(a.facts).read_text(encoding="utf-8"))
+                 if Path(a.facts).exists() else json.loads(a.facts))
+        fired = chain(facts)
+        print(f"{len(fired)} rule(s) fired:")
+        for f in fired:
+            print(json.dumps(f, ensure_ascii=False)[:300])
+        return 0
+    if a.cmd == "export":
+        out = export(a.name)
+        print(f"exported → {out}")
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

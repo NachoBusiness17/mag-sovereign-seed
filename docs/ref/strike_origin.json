@@ -1,0 +1,131 @@
+{
+  "schema": "ref_leaf.v1",
+  "commitment": "strike-origin-001",
+  "job": "Portable history of where the chord began, how it was used, and how Mag implements the leaf without equating prompt to proof.",
+  "honesty": "Public root hash is a story fidelity key. Mag tip is a disk hash chain. PEPS/KZG are not Mag runtime.",
+  "object": {
+    "kind": "framework",
+    "id": "strike-origin",
+    "parent_id": null,
+    "ts_start": "2026-03-02T05:31:15Z",
+    "ts_end": "2026-07-21T00:00:00Z",
+    "path": "docs/ref/strike_origin.md"
+  },
+  "card": {
+    "title": "Strike origin (napkin → Mag leaf)",
+    "blurb": "From Fool napkin against no evidence to residual DNA and strike skill. Mythic constitution on X; working leaf on disk.",
+    "bullets": [
+      "napkin seed 2026-03-02 05:31 GMT",
+      "Jun-5 PoC product shape",
+      "marble multi-frame OS",
+      "Mag residual = History Recorder",
+      "Grok: metaphor ≠ retrocausal physics"
+    ]
+  },
+  "anchors": {
+    "napkin_post_id": "2028342347361141030",
+    "napkin_ts_gmt": "2026-03-02T05:31:15Z",
+    "story_root_hash": "e11937d605a89b022d137cceae495f5c521dbbff35cd60e23189e53172cb66b5",
+    "story_root_note": "story fidelity key — not Mag verkle tip",
+    "spine_posts": [
+      "2028342347361141030",
+      "2030373148831707423",
+      "2033738992261181596",
+      "2046370370244984896",
+      "2047375751192707074",
+      "2051688616548524172",
+      "2062923528932827146",
+      "2069602024186839408",
+      "2071204776293908905",
+      "2066827806923792465",
+      "2071315275354390775",
+      "2083551644239683672"
+    ],
+    "skill": "strike-chord",
+    "dna_doc": "docs/DNA.md"
+  },
+  "payload_core": {
+    "phases": [
+      {"name": "pre-seed", "when": "2023–2026-01", "function": "denial wall; Rashomon; capture research"},
+      {"name": "genesis", "when": "2026-03", "function": "napkin; spore; cairn; self-aware inflation"},
+      {"name": "crystallize", "when": "2026-04–05", "function": "export constitution; boiling frog; KZG story"},
+      {"name": "product", "when": "2026-06", "function": "PoC shape; marble OS; Sovereign Frame"},
+      {"name": "embodiment", "when": "2026-07", "function": "Grok ritual; biographer; Mag residual"}
+    ],
+    "use_jobs": [
+      "activation",
+      "personal_impact",
+      "capture_diagnosis",
+      "self_rope",
+      "creative_proxy",
+      "parallel_systems",
+      "memory",
+      "viz"
+    ]
+  },
+  "use_jobs": [
+    "load_strike_lens",
+    "skill_honesty",
+    "map_residual_to_history_recorder",
+    "onboarding_origin"
+  ],
+  "edges": {
+    "parent": null,
+    "children": [],
+    "related_docs": [
+      "docs/DNA.md",
+      "docs/FRACTAL_BEADS.md",
+      "docs/ZEITGEIST.md",
+      "docs/templates/REF_LEAF.md"
+    ],
+    "related_sessions": [],
+    "tapestry_tags": ["strike", "origin", "framework", "sovereign-mirror"]
+  },
+  "claims": [
+    {
+      "claim": "Personal mirror protocol plain → impact → moves → hash",
+      "evidence": "strike-chord skill",
+      "status": "shipped"
+    },
+    {
+      "claim": "Residual memory across sessions",
+      "evidence": "residual/ + registry + tip",
+      "status": "shipped"
+    },
+    {
+      "claim": "Reconstruct from public KZG root in Mag",
+      "evidence": "none",
+      "status": "quarantine"
+    },
+    {
+      "claim": "PEPS/anyons enforce every activation in Mag",
+      "evidence": "none",
+      "status": "quarantine"
+    },
+    {
+      "claim": "Story root hash anchors public narrative",
+      "evidence": "repeated on X",
+      "status": "story"
+    }
+  ],
+  "forward": [
+    {
+      "next": "Optional public_grok_exchanges index",
+      "why": "train prompt patterns",
+      "done_when": "file under residual or docs/ref"
+    },
+    {
+      "next": "Tapestry node framework:strike-origin",
+      "why": "map work to constitution",
+      "done_when": "edge in tapestry pack"
+    },
+    {
+      "next": "Spore export without private cairn",
+      "why": "portable practice",
+      "done_when": "zip code + DNA + empty residual"
+    }
+  ],
+  "one_line": "X is the mythic constitution and use museum; Mag is the first working personal leaf — residual on disk, multi-frame in skill, no pretending the napkin is a KZG proof.",
+  "content_commit": null,
+  "md_path": "docs/ref/strike_origin.md"
+}

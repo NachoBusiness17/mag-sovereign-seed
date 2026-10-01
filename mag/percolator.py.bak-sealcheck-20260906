@@ -1,0 +1,363 @@
+"""percolator — raw signal in; noise/theater stripped; repeatables compiled to invariants;
+novel signal explored + folded. Applied EVERYWHERE (training-signal detection, X-tabs, intake).
+
+Operator (2026-08-11): "raw signal invariant stripped of noise and theater. anything that can be
+repeated is compiled into invariants anything novel explored and folded" + "for training signal
+detection and false positives do this everywhere" + "put the noise in a noise file".
+
+THE PIPELINE (deterministic, $0 — no LLM, module functions only):
+  percolate(text) ->
+    split into sentences
+    classify each: SIGNAL vs THEATER vs NOISE (lexicon scoring, no hallucination)
+    noise/theater sentences -> NOISE FILE (memory/ghost/noise/<domain>.jsonl)
+    clean signal -> canonical fingerprint (hash of the signal sentences)
+    if that canonical has been seen before  -> REPEAT  -> compile to INVARIANT (fold via fact_bus +
+      invariant registry, dedupe by content hash). Recurrence = stable truth worth compiling.
+    if it is NOVEL (first time)            -> NOVEL   -> log to the EXPLORE queue (deep research /
+      steal / synthesis / frontier assistance) so it gets explored and folded.
+  inaccessible / blocked input            -> INTAKE REGISTER (memory/ghost/intake/register.jsonl)
+      status 'open', to look into later (inference/steering assistance when deep in training).
+  false positives (a detected training signal that is actually noise) -> filtered + counted, so the
+      lexicon/registry learns and the FP rate drops. Honesty: a false positive is logged, never
+      carried forward as truth.
+
+Schema: percolator.v1 · deterministic + $0 · deps: stdlib only
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+try:
+    from config import ROOT
+except Exception:
+    ROOT = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(ROOT))
+
+SCHEMA = "percolator.v1"
+NOISE_DIR = ROOT / "memory" / "ghost" / "noise"
+INTAKE_DIR = ROOT / "memory" / "ghost" / "intake"
+INVARIANT_REGISTRY = ROOT / "memory" / "percolator" / "invariants.json"
+SEALS_DIR = ROOT / "memory" / "seals"
+EXPLORE_QUEUE = ROOT / "memory" / "percolator" / "explore.jsonl"
+
+# ── signal lexicon (deterministic scoring, no hallucination) ──────────────────
+SIGNAL_HINTS = (
+    "system prompt", "you are", "available tools", "guidelines", "tools:",
+    "invariant", "architecture", "swarm", "flock", "rib", "procedure", "mechanism",
+    "we built", "we made", "how to", "the map precedes", "intended paths", "consensus",
+    "agent", "steer", "fold", "verkle", "training signal", "false positive", "noise",
+)
+THEATER_HINTS = (
+    "thrilled", "excited", "excitedly", "announcement", "breaking", "🚀", "🔥",
+    "huge", "massive", "historic", "game-changer", "revolutionary", "unprecedented",
+    "amazing", "incredible", "so excited", "to the moon", "check this out",
+    "steal_pack", "rib_bus_", "session_id",
+)
+NOISE_HINTS = (
+    "reposted", "retweet", "thread", "follow me", "follow @", "like and share",
+    "subscribed", "verified", "sponsored", "advertisement", "sign up", "subscribe",
+    "giveaway", "win a", "click the link", "dm me", "replies", "reply to",
+)
+MIN_SIGNAL_LEN = 3  # a 'sentence' shorter than this is not signal
+
+_SENT_RE = re.compile(r"[^.!?\n]+[.!?]?")
+_TOKEN_RE = re.compile(r"[a-z0-9_]+")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _canonical_hex(signal_sentences: list[str]) -> str:
+    norm = " ".join(s.strip().lower() for s in signal_sentences if s.strip())
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16] if norm else ""
+
+
+def _sentences(text: str) -> list[str]:
+    return [s.strip() for s in _SENT_RE.findall(text or "") if s.strip()]
+
+
+def _classify(sentence: str) -> dict[str, Any]:
+    low = sentence.lower()
+    toks = set(_TOKEN_RE.findall(low))
+    signal = sum(1 for h in SIGNAL_HINTS if h in low)
+    theater = sum(1 for h in THEATER_HINTS if h in low)
+    noise = sum(1 for h in NOISE_HINTS if h in low)
+    kind = "signal"
+    if noise > 0 and noise >= signal:
+        kind = "noise"
+    elif theater > 0 and theater >= signal:
+        kind = "theater"
+    return {"sentence": sentence, "signal": signal, "theater": theater,
+            "noise": noise, "kind": kind}
+
+
+def partition(text: str, *, source: str = "") -> dict[str, Any]:
+    """Split raw text into signal / theater / noise sentence classes. Deterministic + $0."""
+    signal_s, theater_s, noise_s = [], [], []
+    for s in _sentences(text):
+        c = _classify(s)
+        if len(_TOKEN_RE.findall(c["sentence"].lower())) < MIN_SIGNAL_LEN:
+            noise_s.append(c)
+            continue
+        {"signal": signal_s, "theater": theater_s, "noise": noise_s}[c["kind"]].append(c)
+    return {"source": source, "signal": signal_s, "theater": theater_s, "noise": noise_s,
+            "n_signal": len(signal_s), "n_theater": len(theater_s), "n_noise": len(noise_s)}
+
+
+def _append_jsonl(path: Path, entry: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _read_jsonl(path: Path, tail: int = 200) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    out = []
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-tail:]:
+            if line.strip():
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return []
+    return out
+
+
+def _newest_seal_registry() -> Path | None:
+    """Newest seal snapshot of the invariant registry, or None (seal dir names are UTC-sortable)."""
+    try:
+        cands = sorted(SEALS_DIR.glob("*/memory/percolator/invariants.json"))
+        return cands[-1] if cands else None
+    except OSError:
+        return None
+
+
+def _load_registry() -> dict[str, Any]:
+    reg = None
+    try:
+        if INVARIANT_REGISTRY.is_file():
+            reg = json.loads(INVARIANT_REGISTRY.read_text(encoding="utf-8"))
+    except Exception:
+        reg = None
+    seal_path = _newest_seal_registry()
+    if reg is not None and seal_path is not None:
+        try:  # shrank >50% vs the newest seal = wipe signature -> heal below
+            if len(reg.get("invariants") or {}) * 2 < len(
+                    json.loads(seal_path.read_text(encoding="utf-8")).get("invariants") or {}):
+                reg = None
+        except Exception:
+            pass
+    if reg is None and seal_path is not None:
+        try:  # AUTO-HEAL (registry-wipe amnesia, 2026-09-06): merge newest seal, never start empty
+            seal = json.loads(seal_path.read_text(encoding="utf-8"))
+            merged = dict(seal.get("invariants") or {})
+            if reg is None and INVARIANT_REGISTRY.is_file():
+                try:
+                    live = json.loads(INVARIANT_REGISTRY.read_text(encoding="utf-8"))
+                    for k, v in (live.get("invariants") or {}).items():
+                        if k in merged:  # disjoint time windows post-wipe: sum + max, like the blessed restore
+                            merged[k]["count"] += v.get("count", 0)
+                            merged[k]["last_seen"] = max(merged[k].get("last_seen") or "",
+                                                         v.get("last_seen") or "")
+                        else:
+                            merged[k] = v
+                    seal["false_positives"] = max(seal.get("false_positives", 0),
+                                                  live.get("false_positives", 0))
+                except Exception:
+                    pass
+            reg = {"invariants": merged, "false_positives": seal.get("false_positives", 0)}
+            _append_jsonl(INVARIANT_REGISTRY.parent / "heal.log",
+                          {"ts": _now(),
+                           "heal": f"auto-healed {len(merged)} generations from {seal_path.parents[2]}"})
+        except Exception:
+            reg = None
+    if reg is None:
+        reg = {"invariants": {}, "false_positives": 0}
+    reg.setdefault("invariants", {})
+    reg.setdefault("false_positives", 0)
+    return reg
+
+
+def _save_registry(reg: dict[str, Any]) -> None:
+    INVARIANT_REGISTRY.parent.mkdir(parents=True, exist_ok=True)
+    tmp = INVARIANT_REGISTRY.with_name(f"{INVARIANT_REGISTRY.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(reg, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, INVARIANT_REGISTRY)  # atomic: empty-file-from-crash is now impossible
+
+
+def append_noise(items: list[dict[str, Any]], *, domain: str = "general") -> dict[str, Any]:
+    """Write the stripped noise/theater to a per-domain noise file (jsonl)."""
+    path = NOISE_DIR / f"{domain}.jsonl"
+    for it in items:
+        _append_jsonl(path, {"ts": _now(), "kind": it["kind"], "sentence": it["sentence"]})
+    return {"ok": True, "schema": SCHEMA, "path": str(path.relative_to(ROOT)).replace("\\", "/"),
+            "n": len(items)}
+
+
+def noise_log(domain: str = "general", *, tail: int = 200) -> dict[str, Any]:
+    path = NOISE_DIR / f"{domain}.jsonl"
+    rows = _read_jsonl(path, tail)
+    return {"ok": True, "schema": SCHEMA, "domain": domain, "n": len(rows), "rows": rows}
+
+
+def intake_register(target: str, *, reason_blocked: str, why_useful: str,
+                    source: str = "x-tabs", domain: str = "general") -> dict[str, Any]:
+    """When input is INACCESSIBLE, log it to the intake register for later (inference/steering)."""
+    rec = {"id": hashlib.sha256(f"{target}\x1f{_now()}".encode("utf-8")).hexdigest()[:16],
+           "ts": _now(), "target": target, "source": source, "domain": domain,
+           "reason_blocked": reason_blocked, "why_useful": why_useful, "status": "open"}
+    _append_jsonl(INTAKE_DIR / "register.jsonl", rec)
+    return {"ok": True, "schema": SCHEMA, "intake": rec,
+            "path": str((INTAKE_DIR / "register.jsonl").relative_to(ROOT)).replace("\\", "/")}
+
+
+def open_intake(*, tail: int = 200) -> dict[str, Any]:
+    rows = [r for r in _read_jsonl(INTAKE_DIR / "register.jsonl", tail) if r.get("status") == "open"]
+    return {"ok": True, "schema": SCHEMA, "n_open": len(rows), "rows": rows}
+
+
+def false_positive(signal_sentence: str, *, reason: str = "detected signal is actually noise",
+                   domain: str = "general") -> dict[str, Any]:
+    """Filter a FALSE POSITIVE training signal: log it (never carried as truth) + count it."""
+    reg = _load_registry()
+    reg["false_positives"] = reg.get("false_positives", 0) + 1
+    _save_registry(reg)
+    _append_jsonl(NOISE_DIR / f"{domain}.fp.jsonl",
+                  {"ts": _now(), "sentence": signal_sentence, "reason": reason})
+    return {"ok": True, "schema": SCHEMA, "false_positives_total": reg["false_positives"],
+            "path": str((NOISE_DIR / f"{domain}.fp.jsonl").relative_to(ROOT)).replace("\\", "/")}
+
+
+def _compile_invariant(signal_sentences: list[str], canonical: str, *, domain: str) -> dict[str, Any]:
+    reg = _load_registry()
+    inv = reg["invariants"].get(canonical)
+    if inv:
+        inv["count"] += 1
+        inv["last_seen"] = _now()
+        _save_registry(reg)
+        return {"status": "repeat", "invariant": inv["text"], "count": inv["count"],
+                "canonical": canonical, "compiled": True}
+    text = " ".join(s.strip() for s in signal_sentences if s.strip())
+    reg["invariants"][canonical] = {"text": text, "count": 1, "first_seen": _now(),
+                                    "domain": domain}
+    _save_registry(reg)
+    try:
+        from mag import fact_bus
+        # fold=False (2026-08-16, sacred-cow fix): a percolator SIGNAL does not need a full
+        # verkle session-knot append (append_verkle_knot -> _rewrite_chain uses
+        # incremental O(n log n) prefix roots over the whole chain).
+        # The fact still lands in the fact STORE + the invariant registry (real data); only the
+        # expensive session-knot verkle rewrite is skipped. The spine (verkle_knot) is untouched.
+        fb = fact_bus.publish_fact(text[:400], who="percolator", what="compiled_invariant",
+                                   when=_now(), domain=domain, fold=False)
+    except Exception:
+        fb = {}
+    return {"status": "novel", "invariant": text, "count": 1, "canonical": canonical,
+            "compiled": True, "fact_bus": fb}
+
+
+def percolate(text: str, *, source: str = "", domain: str = "general",
+              fold: bool = True) -> dict[str, Any]:
+    """The full percolator. Raw signal -> noise file + invariants (repeat) / explore (novel)."""
+    p = partition(text, source=source)
+    # 1) strip noise + theater to the noise file
+    stripped = p["theater"] + p["noise"]
+    noise_res = append_noise(stripped, domain=domain) if stripped else {"ok": True, "n": 0}
+    # 2) the clean signal
+    signal_sentences = [s["sentence"] for s in p["signal"]]
+    canonical = _canonical_hex(signal_sentences)
+    if not signal_sentences:
+        return {"ok": True, "schema": SCHEMA, "source": source, "verdict": "no_signal",
+                "noise": noise_res, "n_signal": 0, "n_stripped": len(stripped)}
+    # 3) repeat (compile to invariant) vs novel (explore + fold)
+    res = _compile_invariant(signal_sentences, canonical, domain=domain)
+    if res["status"] == "novel":
+        _append_jsonl(EXPLORE_QUEUE, {"ts": _now(), "source": source, "domain": domain,
+                                      "signal": res["invariant"][:600], "canonical": canonical,
+                                      "status": "open"})
+    return {"ok": True, "schema": SCHEMA, "source": source, "domain": domain,
+            "verdict": res["status"], "n_signal": len(signal_sentences),
+            "n_stripped": len(stripped), "canonical": canonical, "signal": res["invariant"],
+            "count": res["count"], "noise": noise_res,
+            "explore": res["status"] == "novel",
+            "explore_queue": str(EXPLORE_QUEUE.relative_to(ROOT)).replace("\\", "/")}
+
+
+def percolate_signal(text: str, *, pattern: str = "route_decision", source: str = "",
+                     domain: str = "general", emit_event: bool = True) -> dict[str, Any]:
+    """APPLY THE PERCOLATOR EVERYWHERE (training-signal detection + false positives).
+
+    Drop-in for any loop that ingests free-text signal (operator messages, behavioral signals,
+    research findings). It: (1) strips noise/theater to the noise file, (2) filters false
+    positives (a detected signal that is actually noise -> noise .fp file + counted, NEVER carried
+    as truth), (3) compiles repeatable signal into an invariant, (4) queues novel signal for
+    exploration, and (5) optionally emits a training event (mag.training_events.emit) so the
+    signal is captured in the training feed. Deterministic + $0, safe to call from any loop.
+    """
+    p = percolate(text, source=source or pattern, domain=domain)
+    verdict = p.get("verdict", "no_signal")
+    fp = False
+    if verdict == "no_signal" and text and len(text.strip()) >= MIN_SIGNAL_LEN:
+        # text with no detected signal in a signal-bearing path = likely false positive
+        fp_res = false_positive(text[:200], reason="no_signal_in_signal_path", domain=domain)
+        fp = True
+        p["false_positive"] = fp_res
+    evt = {}
+    if emit_event:
+        try:
+            from mag import training_events
+            evt = training_events.emit(
+                pattern if pattern in training_events.VALID_PATTERNS else "route_decision",
+                input_data={"source": source or pattern, "text": text[:500]},
+                outcome={"verdict": verdict, "stripped": p.get("n_stripped", 0),
+                         "signal": p.get("n_signal", 0), "false_positive": fp},
+                pattern_tags=["percolator"])
+        except Exception as e:
+            evt = {"error": str(e)[:120]}
+    p["false_positive"] = fp
+    p["training_event"] = evt
+    return p
+
+
+def status() -> dict[str, Any]:
+    reg = _load_registry()
+    return {"ok": True, "schema": SCHEMA,
+            "contract": "percolate(text) -> noise file + invariant(repeat) / explore(novel); "
+                        "percolate_signal(text) for training-signal detection + false positives",
+            "n_invariants": len(reg.get("invariants") or {}),
+            "false_positives": reg.get("false_positives", 0),
+            "noise_dir": str(NOISE_DIR.relative_to(ROOT)).replace("\\", "/"),
+            "intake": str((INTAKE_DIR / "register.jsonl").relative_to(ROOT)).replace("\\", "/"),
+            "cost": "deterministic + $0 (stdlib only)"}
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(prog="percolator")
+    ap.add_argument("text", nargs="?", help="raw signal to percolate")
+    ap.add_argument("--source", default="manual")
+    ap.add_argument("--domain", default="general")
+    ap.add_argument("--noise-log", action="store_true")
+    ap.add_argument("--intake", action="store_true")
+    ap.add_argument("--status", action="store_true")
+    a = ap.parse_args()
+    if a.status:
+        print(json.dumps(status(), indent=2, default=str))
+    elif a.noise_log:
+        print(json.dumps(noise_log(a.domain), indent=2, default=str))
+    elif a.intake:
+        print(json.dumps(open_intake(), indent=2, default=str))
+    elif a.text:
+        print(json.dumps(percolate(a.text, source=a.source, domain=a.domain), indent=2, default=str))

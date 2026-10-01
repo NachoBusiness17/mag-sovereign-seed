@@ -1,0 +1,547 @@
+Understood — the deliverable below is a rewritten orientation document: compressed, terminology-first, every load-bearing claim sourced, and written in second person to whichever LLM (or human) opens it cold.
+
+-------
+
+# PRIMER: The World-Games Prompt Corpus & Cache-Farming Architecture
+
+**Document class:** L0 orientation artifact — read this before any other corpus document
+**Audience:** Any LLM or human joining this project mid-stream
+**Maintained as:** `00_PRIMER.md` at corpus root · Version 1.0
+
+---
+
+## 0. How to Read This Document
+
+**Citation conventions.** Two source classes appear, marked differently:
+
+1. **【turn0searchN】** — a retrieved web source (project repos, provider docs, reverse-engineered system prompts, arXiv papers). ⚠️ *Note for LLMs:* these IDs are batch-scoped and can collide across retrieval sessions; the **Source Map (§9)** is authoritative. When in doubt, re-verify against the named title, not the ID.
+2. **ScholarName, Year** — established published scholarship (game history, complexity theory). No retrieval needed; these are stable citations.
+
+**Status conventions.** Historical game rules carry one of three flags — `attested` (rules documented in period sources), `reconstructed` (rules inferred from boards/archaeology by named scholars), `speculative` (rules lost; any playable build is invention). Never silently upgrade or downgrade a flag.
+
+---
+
+## 1. The Mission (One Paragraph)
+
+This project collects and structures **self-contained build prompts** — single instructions that cause an LLM to produce a complete, playable game — for every known game across every culture and era, from Senet and Go to Mahjong, Sudoku, and solo RPG systems. The structuring principle is **cache farming**: arranging prompt content into layers so that the largest possible share of every request hits the provider's prompt cache, cutting cost by 50–90% and latency by up to 85% on long prompts 【turn0search15】【turn0search18】【turn0search19】. The five-millennium history of games makes this tractable because world games compress into a handful of shared mechanical families — the history is the cache manifest.
+
+**Companion documents** (read after this one): the full research deep dive (`01_DEEP_DIVE.md`), the Mahjong×Sudoku integration architecture (`02_TILE_PUZZLE.md`), and the universal corpus extension (`03_UNIVERSAL_CORPUS.md`).
+
+---
+
+## 2. Core Vocabulary (Definitions Before Use)
+
+| Term | Definition |
+| :--- | :--- |
+| **Cache farming** | Structuring prompts to maximize cache-hit share of tokens, per §3 Facts 1–3. |
+| **Static prefix** | Prompt content identical across many requests (rules, schemas, contracts). Cacheable. |
+| **Dynamic tail** | Request-specific content (game state, seed, instance). Never cached; keep it last and small. |
+| **Layer L0–L4** | The corpus's five content strata, defined in §4. L0 = universal contract; L1 = family engines; L2 = game statics; L3 = variant/cultural packs; L4 = live instance state. |
+| **Engine (family engine)** | A shared mechanical specification covering a whole game family (e.g., the race/dice engine covers Senet, Ur, Patolli, Pachisi, Ludo). |
+| **Pack** | A small delta (~100–800 tokens) that specializes an engine into one game or variant (Riichi pack, Killer-Sudoku pack, Patolli cultural pack). |
+| **Instance** | One live game state: board string, hand encoding, seed, session context. |
+| **Verifier** | Deterministic code or protocol that checks legality, uniqueness, solvency, or inventory. The LLM *calls* verifiers; it never *is* one. |
+| **Six-function contract** | The universal game schema: `state encoding · initial state · legality · transition · terminal detection · scoring`. Every game fills in the same six slots. |
+| **Output contract** | Cached instructions forcing the model to restate state canonically and cite rules before answering. Primary anti-hallucination device. |
+| **Canonical encoding** | The corpus's compact notations: Tenhou mahjong notation, 81-char Sudoku strings, FEN/PGN, SGF/kifu, `XdY+Z` dice algebra. |
+| **One-shot generation** | Producing a complete playable game from a single structured prompt 【turn0search5】【turn0search11】. |
+| **Research-status field** | The `attested / reconstructed / speculative` flag plus source list carried by every historical pack (§3 Fact 8). |
+
+---
+
+## 3. Ten Established Facts (the Load-Bearing Claims)
+
+**Fact 1 — LLMs recompute their whole prompt every call, and caching stops that.** Each autoregressive step requires prefilling Key/Value (KV) attention tensors for the entire prefix; a 4K-token context can occupy ~1.3 GB of GPU memory in KV alone 【turn0search17】. Prompt caching stores those tensors keyed to the prompt 【turn0search15】.
+
+**Fact 2 — Caching is exact-prefix.** A one-byte difference at position *N* invalidates the cache for everything after *N* 【turn0search18】【turn0search16】. *This single mechanical fact generates the entire architecture: variable content goes last, static content first, byte-identical formatting throughout.*
+
+**Fact 3 — The economics are decisive.** Cached-read pricing runs ~0.1× base input (Anthropic, DeepSeek) to ~0.5× (OpenAI); measured savings are 50–90% of cost and up to 85% of latency on long prompts 【turn0search18】【turn0search17】【turn0search19】. Anthropic exposes explicit `cache_control` breakpoints; OpenAI is fully automatic — so corpus layout must assume exact prefixes regardless of provider 【turn0search19】.
+
+**Fact 4 — Caches especially help long-horizon agentic work** — the exact profile of game sessions and generation pipelines — per the dedicated 2026 arXiv evaluation of prompt caching for long-horizon agentic tasks.
+
+**Fact 5 — The LLM must never be the solver.** Generalized chess is EXPTIME-complete (Fraenkel & Lichtenstein, 1981); generalized Go likewise (Robson, 1983). Solved-game results confirm scale: checkers is a proven draw (Schaeffer et al., 2007), Awari/Oware a proven draw (Romein, 2002), Go 19×19 has ~10¹⁷⁰ legal positions (Tromp, 2016), and 16-given Sudoku provably cannot force uniqueness (McGuire et al., 2012 — 17 is the minimum). **Corollary:** the LLM emits instances and applies rules; legality, uniqueness, difficulty, and win-checks go to deterministic verifiers defined in cached protocol blocks.
+
+**Fact 6 — State drift is a documented, empirically studied failure mode.** Field builds report LLM game masters losing track of game state, under-challenging players, and acting without player input 【turn0search2】. The studied remedy is a multi-agent split — a Narrator for fiction, an Archivist for state — which measurably improved player experience (arXiv 2502.19519 【turn0search4】). The corpus's layered design operationalizes this: the Archivist owns dynamic layers only.
+
+**Fact 7 — World games compress into ~7 engine families** (race, war/capture, sowing, tile, card, constraint-puzzle, narrative), a taxonomy established by Murray's *A History of Board-Games Other Than Chess* (1952), extended by Parlett and Culin. Therefore "all games in all cultures" = thousands of small packs over a handful of engines, not thousands of prompts.
+
+**Fact 8 — Ancient rules are contested, and the corpus carries that honestly.** Senet's rules exist only as competing scholarly reconstructions (Kendall, 1978; Piccione, 1990). The Royal Game of Ur's rules come from Babylonian tablet BM 33333, decoded by Irving Finkel (2007–08) — written ~2,400 years after the boards. Hnefatafl's last eyewitness record is Linnaeus's 1732 tablut notes, containing a translation ambiguity (king escapes to *edge* vs. *corner*) that fueled a century of debate. Every historical pack therefore carries a research-status field, and generated games surface disputes ("historians disagree — this build uses X") rather than silently canonizing one school.
+
+**Fact 9 — Structured prompting is the observed working pattern in the wild.** Successful one-shot game builds share a shape — experience spec + technical constraints + acceptance criteria + iteration loop — documented in an education-scale repo (prompt → `index.html`, with documented non-determinism) 【turn0search5】, a single-prompt game-building case study 【turn0search11】, Meta's one-shot game dev cookbook (structured prompt → single-file Three.js game), and community practice of dissecting these prompts 【turn0search10】. Reverse-engineered production system prompts (e.g., GitHub Spark) are publicly readable 【turn0search8】. The frontier critique holds that single-prompt-yields-single-artifact is too rigid, proposing *continual* generation instead (arXiv 2605.28258 【turn0search12】) — which the layered corpus directly supports.
+
+**Fact 10 — Caching can become recursive.** Claude Artifacts may call the model via `window.claude.complete()` 【turn0search8】, so a *generated* game can issue its own cached-prefix requests against the same corpus at runtime. The static investment amortizes across the build step and every subsequent play-session call.
+
+---
+
+## 4. The Architecture in One Diagram
+
+```mermaid
+flowchart TD
+    L0["L0 · Universal Game Contract<br>six-function schema · dice/RNG protocol ·<br>verifier vocabulary · output contract<br>~400 tok · ~99% cache hits"]
+    L1["L1 · Family Engines (7)<br>race · war/capture · sowing · tile ·<br>card · constraint-puzzle · narrative/RPG<br>~1K tok · ~95% hits"]
+    L2["L2 · Game Statics<br>senet · ur · chess · go · oware ·<br>mahjong · sudoku · hanafuda…<br>~2K tok · ~90% hits"]
+    L3["L3 · Variant & Cultural Packs<br>riichi · killer · two-school-senet ·<br>tablut-flag · patolli-history<br>~100–800 tok · ~70% hits"]
+    L4["L4 · Instance State<br>board string · hand encoding · seed · session<br>~300–1K tok · 0% hits (always fresh)"]
+    L0 --> L1 --> L2 --> L3 --> L4
+```
+
+**Why the layering works:** by Fact 2 (exact-prefix), anything shared sits above anything variable. Steady-state targets: ≥85% of tokens cached within a genre; ≥50% even cross-genre (L0–L1 alone). A Riichi Mahjong tutor at ~88% cached share costs roughly an order of magnitude less than the same prompt uncached, before the latency dividend (Fact 3).
+
+---
+
+## 5. The Historical Compression (Why the Mission Is Tractable)
+
+```mermaid
+timeline
+    title Five Millennia, Seven Engines
+    section Bronze Age
+        c.5000 BCE : Astragali (knucklebones) — the first RNG
+        c.3100 BCE : Senet & Mehen (Egypt) — race engines
+        c.2600 BCE : Royal Game of Ur — binary tetrahedral dice
+    section Classical
+        c.650 BCE : Lo Shu magic square legend — constraint-puzzle ancestor
+        c.548 BCE : Go first referenced (Zuo Zhuan)
+        Han era    : Liubo (rules lost — the cautionary tale)
+        c.480 CE   : Zeno's tabula position — earliest saved game state
+    section Medieval
+        c.600 CE   : Chaturanga → Shatranj (chess lineage)
+        1283 CE    : Alfonso X's Libro de los juegos
+        Viking era : Tafl family (asymmetric war engine)
+        Song era   : Xiangqi matures; dominoes emerge
+    section Early Modern → Present
+        1732       : Linnaeus records tablut
+        1870s      : Mahjong crystallizes (Ningbo)
+        1896       : Ludo patents Pachisi; Snakes & Ladders moralizes Gyan Chaupar
+        1974–2004  : D&D (dice algebra) · Garns's Number Place → Nikoli's Sudoku → global boom
+```
+
+**Family → pack examples** (each new game ≈ one ~200-token delta over its engine):
+
+- **Race engine** → Senet (+ritual squares), Ur (+rosettes, binary dice), Patolli (+cross track, beans, the 1569 Inquisition ban as history module), Pachisi (+cowries), Ludo (commercial reskin), Snakes & Ladders (+virtue/vice topology, capture removed).
+- **War/capture engine** → chess family deltas (Shogi's drops → ~10⁷¹ states; Xiangqi's river/palace/cannon; Makruk's weak seo), Tafl asymmetry (2:1 attacker, escaping king), Alquerque → Checkers forced capture.
+- **Sowing engine** → Oware (solved draw), Bao (four rows, staged phases), Kalah (a 1940s commercial invention — the world's classroom mancala), plus hundreds of named regional variants: the highest pack-to-engine ratio on Earth (de Voogt).
+- **Tile engine** → dominoes and four-player Mahjong share inventory machinery; the solitaire branch (Mahjong Solitaire c. 1981 → *Shanghai* 1986; Shisen-Sho) adds reusable layout assets; Memory Match is the degenerate case.
+- **Constraint-puzzle engine** → one *puzzle grammar* (topology + domain + constraint clauses + instance + verifier) generates the Nikoli galaxy — Kakuro, Hitori, Nonogram, Slitherlink, Nurikabe, Masyu, Hashiwokakero — each a clause-swap; Sudoku is the flagship with the Lo Shu → Euler (1782) → Garns (1979) → Nikoli (1984) → Gould/Times (2004) lineage as its shared historical module.
+- **Narrative/RPG engine** → the counterintuitive jackpot: rules + setting bibles + bestiaries + oracle tables form a 20–70K-token *static* payload against only ~1–2K dynamic tokens, making solo-RPG sessions the largest absolute cache savings in the corpus. Solo oracles (Mythic-style 2d6 likelihood ladders, d100 action/theme tables) are pure lookup machinery — perfectly static. Lineage: Kriegsspiel (1812) → Wells (1913) → *Braunstein* (1971) → D&D (1974) → dice pools (Shadowrun 1989, WoD 1991) → 2d6 moves (Apocalypse World 2010).
+
+---
+
+## 6. Operating Rules for Any LLM Working on This Project
+
+You are an LLM operating inside this corpus. These are binding rules, each traceable to a Fact:
+
+1. **Never improvise randomness.** All dice, draws, and shuffles resolve through the seeded universal RNG protocol in L1 — astragali, binary tetrahedral (Ur), casting sticks, cowries, and modern `XdY+Z` are all defined there. (Failure mode: the largest hallucination vector in race/RPG games.)
+2. **Never invent game objects.** Tiles, pieces, and cells must pass inventory verification; begin every state-dependent answer with a canonical-notation restatement, per the cached output contract. (Fact 6.)
+3. **Never solve; verify.** Emit instances and apply rules; delegate legality, uniqueness, and difficulty to the deterministic verifiers named in cached protocol blocks. (Fact 5.)
+4. **Never canonize disputed history.** Ship competing reconstructions as alternate packs under one game, flag `attested/reconstructed/speculative`, and present disagreements to players verbatim. (Fact 8.)
+5. **Order prompts static-first, variable-last.** This is not style; it is the prefix-exactness law. (Fact 2.)
+6. **Add games as packs, not prompts.** A new game is a delta over an existing engine. If no engine fits, propose a new L1 engine explicitly before writing anything else. (Fact 7.)
+7. **Patch the corpus, not the request.** Systematic failures update static blocks once; they never become per-request workarounds.
+8. **Surface uncertainty.** If a rule, date, or parameter is uncertain, say so in the response; do not resolve silently.
+9. **Respect attribution.** Cultural packs name their origin culture and sources; commercial reskins (Kalah, Ludo, Sudoku's Japanese branding) are documented as such. (Fact 8.)
+
+---
+
+## 7. Current Corpus Status & Build Order
+
+| Item | Status | Priority |
+| :--- | :--- | :--- |
+| This primer (L0 orientation) | ✅ written (this document) | — |
+| L0 universal contract + RNG protocol | specified, not yet written as asset | **1st** — lights up every race game (Senet→Ludo) in one write |
+| Race/dice engine (L1) | specified | **1st** (ships with L0) |
+| Constraint-puzzle grammar + Sudoku/Mahjong statics | specified in `02_TILE_PUZZLE.md` | 2nd — Sudoku becomes the Nikoli galaxy for ~one clause-swap each |
+| Solo-RPG layered stack + oracle block | specified | 3rd — largest absolute savings |
+| War, sowing, tile, card engines (L1) | specified in taxonomy | 4th |
+| Cultural packs (Senet two-school, Ur routes, Tablut flag, Patolli, Mancala set) | templates defined | rolling |
+| Hybrid prototypes (Nine Halls, Lo Shu Bridge, Constraint Riichi) | designed | proof-of-generalization |
+| Instrumentation (hit-rate dashboard, verifier rejection logs) | targets set (L0 ≥99% … L3 ≥70%) | continuous |
+
+---
+
+## 8. Open Research Agenda
+
+| Question | Why it matters | First probe |
+| :--- | :--- | :--- |
+| Cross-provider cache portability | Anthropic breakpoints vs. OpenAI auto-caching imply different optimal layouts | Same L0–L4 corpus, measure hit rates on both |
+| User acceptance of disputed-history presentation | Two-school Senet ships disagreement — delight or confusion? | A/B study |
+| Difficulty-metric portability | Technique-ladder ratings must match human expectation across Nikoli puzzles | Benchmark vs. published ratings |
+| Hallucination benchmark for game inventories | No standard test exists for tile/cell integrity | Build from verifier logs |
+| Recursive artifact economics | Generated games calling the cached corpus via API 【turn0search8】 | Prototype Nine Halls as self-serving artifact |
+| Continual vs. one-shot generation | Single-artifact paradigm is under critique 【turn0search12】 | Corpus-guided iterative builds vs. raw one-shots |
+
+---
+
+## 9. Source Map
+
+**Retrieved corpus (verify by title; IDs are batch-scoped):**
+
+| Topic | Sources |
+| :--- | :--- |
+| Prompt caching mechanics/economics | IBM overview 【turn0search15】; Hannecke deep-dive (KV memory figures) 【turn0search17】; ngrok analysis (85% latency) 【turn0search18】; Amazon Bedrock how-to 【turn0search19】; practitioner mechanics thread 【turn0search16】 |
+| LLM game mastering | Semantic Kernel digital DM (failure modes) 【turn0search2】; Leanpub text-adventure GM guide 【turn0search3】; multi-agent Narrator/Archivist study (arXiv 2502.19519) 【turn0search4】; GM prompt community practice 【turn0search0】【turn0search1】 |
+| One-shot game generation | CopilotCLI repo (prompt → index.html, non-determinism) 【turn0search5】; single-prompt case study 【turn0search11】; magical one-shot guide 【turn0search7】; community dissection 【turn0search10】; indie acceleration commentary 【turn0search13】 |
+| Production system prompts & recursion | Willison's prompt-to-app research incl. GitHub Spark dissection and `window.claude.complete()` 【turn0search8】 |
+| Continual generation & evaluation | arXiv 2605.28258 (GUI agents, continual generation) 【turn0search12】; ACM Prompt-Gaming pilot 【turn0search14】; prompt-engineering survey (PMC) 【turn0search9】 |
+| Game data corpora | Board-game rules explainer 【turn0search20】; BGG datasets & API 【turn0search21】【turn0search22】【turn0search23】【turn0search24】 |
+
+**Scholarship (stable citations):**
+
+| Topic | Anchors |
+| :--- | :--- |
+| Family taxonomy | Murray, *A History of Board-Games Other Than Chess* (1952); Parlett, *The Oxford History of Board Games* (1999); Culin (1898); Bell (1960); de Voogt (mancala) |
+| Ancient games | Finkel (Ur tablet BM 33333, 2007–08); Kendall (1978); Piccione (1990); Woolley (Ur excavations); Linnaeus (1732 tablut); Alfonso X (1283); Durán (Patolli) |
+| Complexity & solving | Allis (1994); Fraenkel & Lichtenstein (1981); Robson (1983); Schaeffer et al. (2007 — checkers); Romein (2002 — Awari); Tromp (2016 — Go); Gasser (1996 — Morris) |
+| Puzzle lineage | Euler (1782 — Latin squares); McGuire et al. (2012 — 17-given minimum); Garns/Dell (1979); Nikoli (1984– ) |
+| RPG lineage | Prussian Kriegsspiel (1812); Wells (1913); Gygax & Arneson (1974); Parlett on dice |
+
+---
+
+## 10. Closing Orientation
+
+If you remember nothing else: **cache hits are bought by byte-identical prefixes** (Fact 2), **so the corpus is a layering discipline** (§4), **the LLM narrates and emits while verifiers decide** (Fact 5), **every game in history is a small pack over one of seven engines** (Fact 7), **and contested history travels openly via research-status flags** (Fact 8). Begin any task by locating it on the §7 build-order table; end any task by writing what you learned back into the corpus — the corpus is not just the deliverable, it is the research instrument.
+# The Full Research Deep Dive: Self-Contained Game Prompts, the World's Games, and the Architecture of Cache Farming
+
+## 0. Methodology and Source Discipline
+
+This report merges two source classes, and marks them differently:
+
+- **Retrieved corpus** — cited inline as 【turn0searchN】: LLM game-generation projects, reverse-engineered system prompts, prompt-caching analyses, and evaluation studies.
+- **Established scholarship** — attributed by name inline: Irving Finkel (Royal Game of Ur tablet), H.J.R. Murray (*A History of Board-Games Other Than Chess*, 1952 — still the backbone of cross-cultural game taxonomy), David Parlett (card game history), Alex de Voogt (mancala), Timothy Kendall and Peter Piccione (Senet reconstructions), Victor Allis (game complexity, 1994), Jonathan Schaeffer (checkers solved, 2007), and others.
+
+Where historical rules are contested, the game is flagged **attested / reconstructed / speculative** — this flag becomes a formal field in the prompt corpus itself (§3.3).
+
+---
+
+## Part I — Prompt Caching: The Engineering Substrate
+
+### 1.1 What Actually Gets Cached
+
+An LLM does not read text; it computes **Key/Value (KV) tensors** — attention intermediates — for every token at every layer. On every autoregressive step the entire prefix must be prefilled. A 4K-token context can consume **~1.3 GB of GPU memory for KV alone** 【turn0search17】. Prompt caching stores those tensors server-side, keyed by an **exact prefix match**, so subsequent requests skip prefill entirely.
+
+Measured results across providers: cost reductions of **50–90%** and latency reductions **up to 85% for long prompts** 【turn0search18】【turn0search15】, with dedicated evaluations confirming gains specifically on **long-horizon agentic workloads** — the exact profile of a game session or generation pipeline 【turn0search19】.
+
+### 1.2 Provider Mechanics Comparison
+
+| Property | Anthropic | OpenAI | Google Gemini | DeepSeek |
+| :--- | :--- | :--- | :--- | :--- |
+| Control | Explicit `cache_control` breakpoints (max 4) | Fully automatic prefix matching | Implicit + explicit `CachedContent` API | Automatic |
+| Minimum cacheable | 1,024 tok (2,048 some models) | 1,024 tok | ~2,048 tok (model-dep.) | None (any prefix) |
+| Write cost | 1.25× base input | None (free) | Free (implicit) | None |
+| **Read cost** | **0.1× base** | **0.5× base** | **~0.25–0.75× (tiered)** | **0.1× base** |
+| TTL | 5 min (refresh on hit); 1-hr option | ~5–10 min | Model-dependent | Hours |
+
+Two consequences follow immediately:
+
+1. **Anthropic/DeepSeek economics (0.1× reads) reward large static prefixes most** — a 10K-token cached prefix read 100 times costs the same as 1,000 fresh tokens. This is why the corpus architecture front-loads static content.
+2. **OpenAI gives no manual control** — architecture must rely purely on byte-identical prefixes, making the "static-first ordering" rule non-negotiable across all providers.
+
+### 1.3 The Prefix-Exactness Law
+
+> ⚠️ **The single rule that shapes everything**: Caching is exact-prefix. A one-byte difference at position *N* invalidates the cache for everything after *N*. Therefore: **anything that varies between requests must appear as late in the prompt as possible.** Game name, theme, variant, and instance state come *last*; notation schemas, rule mechanics, output contracts come *first*.
+
+This one law, mechanically derived, generates the entire layered architecture used throughout this report.
+
+### 1.4 Recursion Opportunity: Artifacts Calling the API
+
+Claude Artifacts run in a browser sandbox but now expose `window.claude.complete()` — allowing a generated game artifact to **compose and execute its own prompts against Claude** 【turn0search8】. A generated Mahjong tutor can thus issue cached-prefix requests itself. Cache farming becomes *recursive*: the static corpus amortizes across both the build step and every runtime call the built game ever makes.
+
+---
+
+## Part II — The Formal Theory of Games (Why the LLM Must Not Be the Solver)
+
+### 2.1 Combinatorial Game Theory in One Paragraph
+
+Conway's *On Numbers and Numbers* (1976) and Berlekamp/Conway/Guy's *Winning Ways* (1982) formalized every impartial/partizan game as a recursively defined position object with exact algebra — games literally *are numbers*. But the practical payload for this project is complexity theory: it tells us what to ask the LLM for and what never to ask.
+
+### 2.2 State-Space Complexity and Solved Status
+
+| Game | State-space size (Allis 1994 lineage) | Solved? |
+| :--- | :--- | :--- |
+| Tic-tac-toe | ~10³ | Draw (trivial) |
+| Connect Four | ~10²¹ | Win for P1 (Allis, 1988) |
+| Checkers | ~10²⁰ | **Draw (Schaeffer et al., 2007)** |
+| Nine Men's Morris | ~10¹⁰ | Draw (Gasser, 1996) |
+| Awari (Oware) | ~10¹² | **Draw (Romein, 2002)** |
+| Backgammon | ~10²⁰ | Not solved |
+| Chess | ~10⁴⁷ (tree ~10¹²⁰) | Not solved |
+| Xiangqi | ~10⁴⁰ | Not solved |
+| Shogi | ~10⁷¹ (drops → no stalemate) | Not solved |
+| Go (19×19) | ~10¹⁷⁰ legal positions (Tromp, 2016) | Not solved |
+
+### 2.3 Complexity Classes → Design Implication
+
+Generalized chess is **EXPTIME-complete** (Fraenkel & Lichtenstein, 1981); generalized Go likewise (Robson, 1983); Hex and many placement games are **PSPACE-complete**. Translation: no efficient exact solver can exist for the generalized families.
+
+> 💡 **The architectural consequence**: The LLM should **emit instances, apply rules, and narrate** — never "solve." Every solvability, legality, difficulty, and win-check claim must be delegated to a **deterministic verifier** called from the cached protocol block. This converts the LLM's failure modes (hallucinated rules, drifted state) into *caught errors* rather than silent corruption. It is the same lesson the multi-agent Game Master research reached empirically 【turn0search4】.
+
+### 2.4 Notation Standards (the Compact-Encoding Layer)
+
+| Domain | Standard | Density |
+| :--- | :--- | :--- |
+| Chess | FEN / PGN | Position in ~70 chars |
+| Go | SGF + kifu coordinates | Whole game in hundreds of bytes |
+| Mahjong | Tenhou/EMA notation (`123m456p789s1z`) | Hand in 10–15 tokens |
+| Sudoku | 81-char row-major string | Whole puzzle in ~81 chars |
+| Dice | `XdY+Z`, `kX`, exploding `!`, pools | Any RPG roll in a phrase |
+
+Compact encodings are not cosmetic — they shrink the *dynamic* tail (which is always recomputed) and keep the cached prefix dominant in token share.
+
+---
+
+## Part III — The Historical Corpus: 5,200 Years of Games as Cacheable Parameter Packs
+
+### 3.1 Master Timeline
+
+```mermaid
+timeline
+    title The Deep Corpus: Five Millennia in One Cache
+    section Prehistory & Bronze Age
+        c.5000 BCE : Astragali (knucklebones) in burial strata — the first RNG
+        c.3100 BCE : Senet & Mehen (Egypt) — race and serpent-spiral engines
+        c.2600 BCE : Royal Game of Ur — binary tetrahedral dice
+        c.2000 BCE : Hounds & Jackals; Shahr-e Sukhteh dice set (c.2800 BCE)
+    section Classical
+        c.650 BCE : Lo Shu magic square legend (China) — constraint-puzzle ancestor
+        c.548 BCE : Go first referenced (Zuo Zhuan)
+        Han era    : Liubo (rules lost); Ludus duodecim scriptorum (Rome)
+        c.480 CE   : Zeno's recorded tabula position — earliest saved "game state"
+    section Medieval
+        c.600 CE   : Chaturanga → Chatrang → Shatranj
+        840 CE     : al-Adli's chess treatise (lost; cited fragments)
+        1283 CE    : Alfonso X's Libro de los juegos (alquerque, tables, chess)
+        Viking era : Hnefatafl / tablut across Northern Europe
+        Song era   : Xiangqi matures (cannon added); dominoes emerge
+    section Early Modern → Modern
+        1500s      : Shogi gains drops; hanafuda; Pachisi at Akbar's court
+        1732       : Linnaeus records tablut (Tafl's last living witness)
+        1870s      : Mahjong crystallizes (Ningbo)
+        1896       : Ludo patented (England); Snakes & Ladders moralized
+        1904       : Landlord's Game (Magie) → Monopoly 1935
+        1974–1979  : D&D; Howard Garns's Number Place → Sudoku 1984
+        1981–1986  : Mahjong solitaire (PLATO → Shanghai)
+```
+
+### 3.2 Era Tables with Evidence Status
+
+**Ancient Near East & Egypt**
+
+| Game | Culture | Date | Family | Evidence | Cache asset |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Senet | Egypt | c. 3100 BCE → Coptic era | Race | **Reconstructed** (Kendall 1978; Piccione 1990 — competing rulesets) | Track engine + ritual module |
+| Mehen | Egypt | c. 3100–2700 BCE | Spiral race | Attested, rules lost | Track engine; "died game" note |
+| Royal Game of Ur | Sumer→Babylon | c. 2600 BCE | Race | **Reconstructed from tablet BM 33333 (177–176 BCE), decoded by Finkel 2007** | Track engine + binary-dice RNG |
+| Hounds & Jackals | Egypt/Nubia | c. 2000 BCE | Peg-track race | Attested (boards), rules inferred | Track engine |
+
+**Asia**
+
+| Game | Culture | Date | Family | Evidence | Cache asset |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Go/Weiqi | China | ≥ 548 BCE | Territory | Fully attested | Territory engine; SGF |
+| Liubo | China | Han era | Dice race | **Speculative** (rules lost) | RNG + track; cautionary tale |
+| Chaturanga | India | c. 600 CE | Piece-war | Attested by lineage | Chess-family base pack |
+| Pachisi/Chaupar | Mughal India | 1500s | Race | Attested (Fatehpur Sikri court board) | Cowrie RNG module |
+| Gyan Chaupar | India | ≤ 1700s | Moral race | Attested (Moksha Patam) | Track + virtue/vice theme pack |
+| Dominoes | China | Song era | Tile-matching | Attested | Shared tile engine w/ mahjong |
+| Xiangqi / Shogi / Janggi / Makruk | E. & S.E. Asia | medieval | Chess family | Attested | Variant delta packs |
+
+**Africa, Americas, Europe**
+
+| Game | Culture | Date | Family | Evidence | Cache asset |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Mancala family (Oware, Bao, Congkak…) | Africa → worldwide | ≤ 1400s | Sowing | Attested; *hundreds* of variants (de Voogt) | Sowing engine + per-region packs |
+| Patolli | Mesoamerica | Teotihuacan→Aztec | Cross-race | Attested (Durán); **banned 1569 by Spanish Inquisition** | Track + bean RNG + history module |
+| Hnefatafl/Tablut | Norse/Sámi | Viking→1732 | Asymmetric war | Reconstructed (Linnaeus's tablut record) | Capture engine + asymmetry pack |
+| Ludus duodecim scriptorum / Tabula | Rome | ≤ 1st c. CE | Race-dice | Attested (Zeno's game, c. 480 CE) | Backgammon ancestor pack |
+| Alquerque → Draughts | Al-Andalus→France | 1283→1700s | Capture-grid | Attested (Libro de los juegos) | Forced-capture pack |
+| Nine Men's Morris | Rome→medieval Europe | ≤ Ovid | Alignment | Attested | Alignment engine |
+
+### 3.3 The Lost-Rules Problem and the Research-Status Protocol
+
+Three canonical cases define the reconstruction pattern:
+
+- **Senet** — boards abundant, rules absent. Kendall's and Piccione's competing reconstructions differ in movement direction and square meanings. **Corpus decision**: ship both as alternate rule packs under one game, flag `reconstructed: two-schools`.
+- **Ur** — the Finkel tablet (a Babylonian scribe's rules, written ~2,400 years after the boards were made) gives bonus squares and dice values, but the exact route remains debated between "short route" and "long route" readings. **Corpus decision**: route as a parameter, dice engine locked to the binary tetrahedral protocol.
+- **Tablut** — Linnaeus watched Sámi players in 1732, but a translation ambiguity in his notes (king escapes to *edge* vs. *corner*) spawned a century of debate. **Corpus decision**: escape condition as parameterized flag.
+
+```markdown
+# RESEARCH-STATUS FIELD (every historical game pack carries this)
+status: attested | reconstructed | speculative
+sources: [Finkel 2008; Kendall 1978; …]
+disputed_parameters: [route_choice, escape_condition, piece_count]
+presentation_rule: surface disputes to players as "historians disagree — 
+  this build uses {X}" — never silently canonize one school
+```
+
+This field is the concrete mechanism for the *"deep iterative historical research"* mission: every session can append sources and upgrade statuses; the corpus is the research log.
+
+### 3.4 Dice: The Oldest Cacheable Component
+
+```markdown
+# UNIVERSAL RNG PROTOCOL (Layer 1 — one write, serves every dice game ever)
+## Modern: dN, XdY+Z, kX (keep), X! (exploding), adv/dis, pools ≥ T
+## Historical modes (all parameterized, all seeded externally — the LLM
+##   NEVER improvises a roll):
+- astragali: asymmetric 4-landing-face distribution (NOT uniform)
+- binary tetrahedral (Ur): 2 of 4 corners marked; count marked-up
+- casting sticks / senet batons: 1–4 flat sides up
+- cowrie shells (Pachisi): mouth-up counts as a value
+- marked beans (Patolli): binary casts
+```
+
+> ⚠️ **Integrity rule derived from the literature**: letting the model "roll" is the single largest hallucination vector in the race-game family. Dice resolution is always seeded-external.
+
+---
+
+## Part IV — Cultural Families as Engine + Pack (the Taxonomy Core)
+
+Murray's 1952 taxonomy and Parlett's work converge on the finding that world games cluster into a **small number of engine families** — which is exactly why "all games in all cultures" is a tractable prompt-corpus problem rather than thousands of unrelated prompts.
+
+```mermaid
+flowchart TD
+    ROOT[World Games] --> RACE[Race engines<br>track + RNG]
+    ROOT --> WAR[War/capture engines<br>pieces + capture]
+    ROOT --> SOW[Sowing engine<br>count-and-capture]
+    ROOT --> TILE[Tile engines<br>matching + hands]
+    ROOT --> CARD[Card engines<br>deck + trick/shed]
+    ROOT --> PUZZLE[Constraint engines<br>Latin-square grammar]
+    ROOT --> RPG[Narrative engines<br>oracle + stats]
+    RACE --> R1[Senet · Ur · Hounds & Jackals<br>Patolli · Pachisi · Ludo · S&L]
+    WAR --> W1[Chess family · Tafl family<br>Alquerque → Checkers · Morris]
+    SOW --> S1[Oware · Bao · Kalah · Congkak]
+    TILE --> T1[Dominoes · Mahjong ·<br>solitaire branch · memory]
+    CARD --> C1[Trick-taking · shedding · fishing<br>hanafuda yaku · rummy]
+    PUZZLE --> P1[Nikoli galaxy · Sudoku ·<br>magic squares · Nonogram]
+    RPG --> G1[Oracle engines · PbtA<br>d6/d10 pools · solo systems]
+```
+
+### 4.1 Race Family — One Engine, Seven Civilizations
+
+Shared Layer-1 spec: linear/ring track, per-square effects table, movement from RNG block, bear-off/win condition, capture-on-landing flag. Every game above is a delta pack: Senet adds ritual squares 26–30; Ur adds rosette bonus squares and binary dice; Patolli is a cross-shaped 52-cell track with beans; Ludo is Pachisi commercialized (1896); Snakes & Ladders strips capture and adds virtue/vice topology (Gyan Chaupar's *moksha patam*). **Marginal cost per new civilization's game: one pack, ~200 tokens.**
+
+### 4.2 Chess Family — Five Branches, One Piece-Hierarchy Engine
+
+| Branch | Region | Signature deltas |
+| :--- | :--- | :--- |
+| Western chess | Europe | 1475 queen/bishop long-range reform |
+| Xiangqi | China | River, palace, cannon-jump |
+| Shogi | Japan | **Drops** (captured pieces redeploy) → 10⁷¹ states, few draws |
+| Janggi | Korea | Palace-line moves; cannon must jump; no drops |
+| Makruk / Sittuyin | Thailand / Myanmar | Weaker queen (seo); counted endgame |
+
+### 4.3 Tafl and the Asymmetric-War Engine
+
+Hnefatafl: attacker outnumbers defender ~2:1, defender's king escapes. The 1732 Linnaeus tablut record is the family's only eyewitness source — and its translation ambiguity (§3.3) is the perfect specimen for the research-status protocol. Asymmetric victory conditions are a reusable engine flag now seen in modern designs.
+
+### 4.4 Mancala — The Largest Family on Earth
+
+Sowing engine: rows of pits, seed distribution loop, capture rules, multi-lap rules. Oware (2×6+4, solved as a **draw by Romein, 2002**), Bao (Zanzibar; four rows; staged phases), Kalah (William Champion Jr., 1940s — a *commercial invention* that became the world's classroom mancala), Congkak/Sungka (maritime SE Asia). Hundreds of named regional variants = hundreds of packs over one engine — the highest pack-to-engine ratio in the corpus.
+
+### 4.5 Tiles, Cards, and the Yaku-Pattern Engine
+
+- **Dominoes** (Song China) and **mahjong** (1870s Ningbo) share the tile-inventory engine; the solitaire branch (Lockard's PLATO mahjong solitaire c. 1981 → *Shanghai* 1986; Shisen-Sho) adds layout assets — as mapped to the builder's tile-matching templates in the prior part.
+- **Hanafuda** (12 flower suits × 4) runs the same **yaku-pattern matching machinery** as mahjong scoring — one shared scoring block, two games. Historical aside: Nintendo was founded in 1889 selling hanafuda.
+- Card games: Parlett's taxonomy (trick-taking / shedding / fishing / matching / climbing / rummy) becomes six Layer-1 card engines; the Mamluk deck (c. 1400: cups, coins, swords, polo-sticks) is the ancestor asset pack.
+
+### 4.6 The Number-Puzzle Lineage: Lo Shu → Euler → Garns → Nikoli
+
+One continuous, citable chain: Lo Shu 3×3 magic square legend (c. 650 BCE) → Euler's Latin squares (1782) → 19th-century French newspaper squares (La France, 1895) → **Howard Garns's "Number Place," Dell, 1979** → Nikoli names it Sudoku (1984) and imposes givens-symmetry aesthetics → Wayne Gould's computer generator, *The Times*, Nov 2004 → global boom. Two hard research anchors: the **17-given minimum theorem** (McGuire et al., 2012 — 16 givens provably cannot force uniqueness) and the Nikoli invention wave (Slitherlink 1989, Hashiwokakero 1990, Nurikabe 1991) that turned one magazine into a genre factory. The whole lineage is one historical module serving every puzzle in the grammar from the prior part.
+
+---
+
+## Part V — Roleplaying and Dice: The Big-Payload Cache
+
+### 5.1 Lineage
+
+Kriegsspiel (Prussia, 1812 — umpires, fog of war) → H.G. Wells's *Little Wars* (1913) → David Arneson's *Braunstein* (1971, role-play inside a wargame) → *Chainmail* (1971) → **Dungeons & Dragons** (January 1974), which popularized the d4/d6/d8/d12/d20 toolkit and, eventually, the full dice-notation algebra. Dice pools arrive with Shadowrun (d6, 1989) and World of Darkness (d10, 1991); the 2d6 moves ladder with Apocalypse World (2010).
+
+### 5.2 Why RPGs Are the Counterintuitive Cache Jackpot
+
+The prior part's table bears repeating with evidence attached: static payload (rules 2–10K tokens, setting bibles up to 50K, bestiaries and oracle tables 3–20K) is enormous relative to dynamic state (~1–2K), so RPG sessions hit the highest *absolute* savings of any corpus category — and the known GM failure modes (state loss, under-challenging the player, acting for the player) documented in the Semantic Kernel digital-DM build 【turn0search2】 are exactly what the layered cache + Archivist-agent design corrects 【turn0search4】. Solo oracle engines (Mythic-style 2d6 likelihood ladders, action/theme d100 cross-tables, NPC trait triples) are pure lookup machinery — perfectly static, perfectly cacheable.
+
+---
+
+## Part VI — LLM Game Generation: State of the Art (Corpus Synthesis)
+
+### 6.1 What the Evidence Shows Actually Works
+
+| Finding | Source |
+| :--- | :--- |
+| Structured one-shot prompt (experience + tech constraints + acceptance criteria) → complete single-file Three.js game | Meta dev cookbook 【turn0search13†prior batch】 |
+| Education-scale one-shot pipeline: `Prompt.md` → `index.html`; non-determinism documented; iterate via small follow-ups | CopilotCLI repo 【turn0search5】 |
+| Reverse-engineered production system prompts exist and are readable — GitHub Spark's dissected in detail | Willison 【turn0search8】 |
+| Single-prompt-yields-single-artifact is being criticized as too rigid; *continual* generation via GUI agents proposed | arXiv 2605.28258 【turn0search12】 |
+| Community practice: devs swapping and dissecting one-shot prompts as a genre | r/aigamedev 【turn0search10】 |
+| Skeptic's counterweight: "single prompt to playable game" demos often produce shallow results without structure | industry commentary 【turn0search5†prior batch】 |
+
+Convergent pattern across all successful cases: **not a clever sentence, but a structured system** — experience spec + technical constraints + acceptance criteria + iteration loop. That is precisely the layered-corpus architecture, observed in the wild.
+
+### 6.2 Failure-Mode Taxonomy → Cached Mitigations
+
+| Failure | Observed in | Cached mitigation |
+| :--- | :--- | :--- |
+| State drift in long sessions | digital-DM builds 【turn0search2】 | Archivist agent + dynamic-layer state contract 【turn0search4】 |
+| Tile/cell hallucination | mahjong/sudoku generation | Mandatory canonical restatement in output contract; verifier against inventory |
+| Rule invention | all families | Rule deltas only via variant packs; output contract forbids unprompted mechanics |
+| Improvised RNG | race/RPG engines | Seeded external resolution (universal RNG block) |
+| Unverifiable puzzles | sudoku family | Hybrid protocol: LLM seeds → external solver validates uniqueness/difficulty (§ of prior part) |
+| Silent canonization of disputed history | cultural packs | Research-status field + presentation rule (§3.3) |
+
+---
+
+## Part VII — Synthesis: The Five-Layer Stack, Priced
+
+```mermaid
+flowchart TD
+    L0["L0 · Universal Game Contract<br>six functions · RNG · verifier vocabulary<br>~400 tok · ~99% hits"]
+    L1["L1 · Family Engines<br>race · war · sowing · tile · card · puzzle · RPG<br>~1K tok · ~95% hits"]
+    L2["L2 · Game Statics<br>senet · ur · chess · oware · mahjong · sudoku…<br>~2K tok · ~90% hits"]
+    L3["L3 · Variant & Cultural Packs<br>riichi · killer · two-school-senet · tablut-flag<br>~500 tok · ~70% hits"]
+    L4["L4 · Instance State<br>hand encoding · board string · seed · session<br>~300–1K tok · 0% (fresh)"]
+    L0 --> L1 --> L2 --> L3 --> L4
+```
+
+**Worked economics** (Anthropic-class pricing, illustrative): a Riichi tutor issuing 1M request-tokens/day at ~88% cached share → ~880K tokens billed at 0.1× ≈ **88K token-equivalents** vs 1M uncached — an order-of-magnitude saving before the latency dividend, consistent with the published 50–90% cost and up-to-85% latency figures 【turn0search18】【turn0search15】. The solo-RPG campaign (largest static payload, ~60K prefix) delivers the largest *absolute* per-request savings in the corpus.
+
+**Governance** (condensed from the prior part): directory `L0…L5`; quality gates = verifier pass + cache hit-rate dashboard (targets L0 ≥99% … L3 ≥70%; cached-token share ≥85% in-genre); the failure→patch loop writes to *static blocks*, never to per-request retries.
+
+---
+
+## Part VIII — Research Agenda (Making the Deep Dive Iterative)
+
+| Open question | Why it matters | First probe |
+| :--- | :--- | :--- |
+| Cross-provider cache portability of the corpus | OpenAI auto-caching vs Anthropic breakpoints imply different optimal layouts | Same L0–L4 corpus, measure hit rates on both |
+| Reconstructed-rules user acceptance | Two-school Senet ships *disagreement*; does that delight or confuse? | A/B presentation study |
+| Difficulty-metric portability for Nikoli puzzles | Technique-ladder ratings must match human expectation | Benchmark vs published puzzle ratings |
+| Hallucination benchmark for game inventories | No standard exists for tile/cell-integrity testing | Build one from the verifier logs |
+| Artifact→API recursion economics | `window.claude.complete()` lets built games draw on the cached corpus 【turn0search8】 | Prototype Nine Halls as a self-serving artifact |
+| Continual vs one-shot generation | arXiv critique of single-artifact paradigm 【turn0search12】 | Compare corpus-guided iterative builds vs raw one-shots |
+
+**Iterative research protocol**: every generation session appends (a) source discoveries → research-status upgrades, (b) verifier rejections → failure taxonomy, (c) cache metrics → layer-boundary adjustments. The corpus doesn't just *contain* the research; it *is* the research instrument.
+
+---
+
+## Part IX — Source Map
+
+| Topic | Retrieved corpus | Scholarship anchors |
+| :--- | :--- | :--- |
+| Prompt caching mechanics & economics | 【turn0search15】【turn0search17】【turn0search18】【turn0search19】 | — |
+| Agentic cache evaluation | 【turn0search16†prior batch】 | — |
+| Game Master prompting & multi-agent | 【turn0search0】【turn0search2】【turn0search3】【turn0search4】 | — |
+| One-shot game generation | 【turn0search5】【turn0search7】【turn0search11】【turn0search13】 | — |
+| Reverse-engineered system prompts / artifacts | 【turn0search8】 | — |
+| Continual generation / evaluation studies | 【turn0search12】【turn0search14】【turn0search9】 | — |
+| Game data & rules corpora | 【turn0search20】【turn0search21】【turn0search23】【turn0search24】 | — |
+| Ancient games | — | Finkel (Ur tablet, 2007–08); Kendall 1978; Piccione 1990; Woolley (Ur excavation) |
+| Family taxonomy | — | Murray 1952; Parlett 1990/1999; Culin 1898; Bell 1960; de Voogt (mancala) |
+| Complexity & solving | — | Allis 1994; Fraenkel & Lichtenstein 1981; Robson 1983; Schaeffer 2007; Romein 2002; Tromp 2016; McGuire 2012 |
+| Eyewitness sources | — | Linnaeus 1732 (tablut); Alfonso X 1283; Durán (Patolli); Zeno's biographer c. 480 CE |
+| Puzzle lineage | — | Euler 1782; Garns/Dell 1979; Nikoli 1984– |
+
+---
+
+## Closing Synthesis
+
+Five findings define the whole terrain. **First**, cache economics are prefix-exact and therefore *architectural* — the layered L0–L4 stack is not a style choice but a mechanical consequence of how KV reuse is priced (0.1× reads, 85% latency cuts) 【turn0search18】. **Second**, complexity theory forbids the LLM from being the solver, which is a gift: it tells us every fragile claim belongs in a deterministic verifier, and the corpus's biggest hallucination risks (tiles, dice, uniqueness) all have cheap cached fixes. **Third**, five millennia of world games compress into ~six engine families — Murray's taxonomy turned out to be a cache manifest — so "all games in all cultures" costs thousands of ~200-token packs, not thousands of prompts, with disputed history handled honestly via research-status flags. **Fourth**, the retrieved corpus shows the field's working pattern is already structural (experience + constraints + acceptance criteria + iteration 【turn0search5】【turn0search13】), with the frontier moving from one-shot artifacts to continual, self-calling systems 【turn0search12】【turn0search8】 — exactly where a recursive cache corpus compounds hardest. **Fifth**, the RPG category, assumed uncacheable, is the largest absolute prize because its static payload is the biggest.
+
+The build order stands: Layer 0 + race/dice engine first (it lights up Senet through Ludo in one write), the Nikoli grammar second (Sudoku becomes ten games), the solo-RPG stack third (the biggest savings). Everything after that is archaeology — and the corpus is the dig site.

@@ -1,0 +1,269 @@
+"""cite_gate — the vision pipeline's missing organ, made structural (2026-09-06).
+
+Pipeline: READ -> FILTER -> INTERPRET -> [CITE-GATE] -> RIGHTSIZE -> JIT.
+This organ sits between INTERPRET and RIGHTSIZE: it extracts the citations a
+card loads its claims on and classifies each one deterministically, so that
+uncited/broken evidence DEMOTES before rightsizing bands the output.
+
+Classes (tri-state stamped per citation):
+  LOCAL-VERIFIED  path exists under ROOT and is non-empty        -> supports
+  LOCAL-MISSING   path given but absent (or empty)               -> unproven
+  URL-UNVERIFIED  http(s) citation, no network in this build     -> unproven (deterministic)
+  NONE            citation-shaped token with no resolvable anchor -> unproven
+
+Per-card verdict: cite_rate = LOCAL-VERIFIED / total citations.
+Writes a JSON row to state/cite_gate_latest.json (latest + capped history).
+
+$0 LAW: local files only. The URL fetch door is a clearly-marked stub that
+raises NotImplementedError — see fetch_url(). Network egress needs a later,
+operator-gated build.
+
+Falsifiers (watch/SELF_STEAL_VISION_PIPELINE_20260905.md):
+  rotation test — fully-cited card -> 1.0, link-only card -> 0.0 (all UNPROVEN),
+  card+broken-path temp copy -> LOCAL-MISSING row appears. Originals never edited.
+
+CLI:
+  python -m mag.cite_gate check <card.md> [--json]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATE_PATH = os.path.join(ROOT, "state", "cite_gate_latest.json")
+HISTORY_CAP = 50
+WORKER = "citegate"
+
+# http(s) citations. Trailing sentence punctuation is stripped deterministically.
+URL_RE = re.compile(r"https?://[^\s<>\"'`\]\}]+")
+
+# Repo-anchored evidence pointers: known top-level dir + >=1 more segment.
+# Optional trailing slash => directory pointer (must be non-empty to verify).
+_ANCHOR = (
+    r"(?:state|watch|memory|mag|corpus|docs|configs|queue|handoff|docker|salon"
+    r"|example|examples|tests|tools|dashboard|\.agents|\.claude|\.zcode)"
+)
+PATH_RE = re.compile(_ANCHOR + r"(?:/[\w.@+\-]+)+/?")
+
+# Citation-shaped bare filenames with no directory anchor (class NONE):
+# unresolvable as written — deterministic UNPROVEN, never counted as verified.
+BARE_FILE_RE = re.compile(
+    r"(?<![\w./\-])[A-Za-z0-9_][\w\-]*\.(?:md|py|json|jsonl|yaml|yml|txt|html"
+    r"|glsl|pdf|csv|log|toml|cfg|ini|bak)\b"
+)
+
+_TRAIL_PUNCT = ".,;:!?'\"*"
+
+
+def fetch_url(url: str) -> str:
+    """FUTURE DOOR — real primary-source fetch for URL citations (NOT this build).
+
+    When approved this must: GET the URL, cache the body under state/cite_gate_cache/,
+    extract the load-bearing claim (arXiv id / DOI / repo+sha / release page),
+    and reclassify URL-UNVERIFIED -> URL-VERIFIED with a content sha256 receipt.
+    Needs operator GO for network egress; this build is $0 by law.
+    """
+    raise NotImplementedError(
+        "cite_gate.fetch_url: URL door is a stub ($0 build); "
+        "network egress requires operator GO in a later build"
+    )
+
+
+def _clean_url(url: str) -> str:
+    url = url.rstrip(_TRAIL_PUNCT)
+    if url.endswith(")") and "(" not in url:
+        url = url[:-1].rstrip(_TRAIL_PUNCT)
+    return url
+
+
+def _resolve_path(target: str) -> str:
+    t = target.replace("\\", "/").strip()
+    if t.startswith("ROOT/"):
+        t = t[5:]
+    if os.path.isabs(t):
+        return os.path.normpath(t)
+    return os.path.normpath(os.path.join(ROOT, t))
+
+
+def _classify_path(raw: str) -> dict:
+    target = raw.rstrip(".,;:")  # strip sentence punctuation; keep raw for display
+    resolved = _resolve_path(target)
+    is_dir_pointer = target.endswith("/")
+    if not os.path.exists(resolved):
+        return {
+            "kind": "path",
+            "raw": raw,
+            "resolved": resolved,
+            "class": "LOCAL-MISSING",
+            "status": "unproven",
+            "note": "path absent on host",
+        }
+    if is_dir_pointer or os.path.isdir(resolved):
+        non_empty = bool(os.listdir(resolved))
+        return {
+            "kind": "path",
+            "raw": raw,
+            "resolved": resolved,
+            "class": "LOCAL-VERIFIED" if non_empty else "LOCAL-MISSING",
+            "status": "supported" if non_empty else "unproven",
+            "note": "directory" + ("" if non_empty else " exists but empty"),
+        }
+    size = os.path.getsize(resolved)
+    return {
+        "kind": "path",
+        "raw": raw,
+        "resolved": resolved,
+        "class": "LOCAL-VERIFIED" if size > 0 else "LOCAL-MISSING",
+        "status": "supported" if size > 0 else "unproven",
+        "note": f"file, {size} bytes" if size > 0 else "file exists but empty",
+    }
+
+
+def extract_citations(text: str, strict: bool = False) -> list:
+    """Deterministic extraction + classification. Dedupe by (kind, target).
+
+    Default: only anchored citations (URLs + repo-anchored paths) — a bare
+    filename in prose is a mention, not a load-bearing citation. --strict
+    additionally captures bare filenames as class NONE (audit mode).
+    """
+    seen: set = set()
+    mask = text
+
+    # 1. URLs first (masked so path scan cannot double-count them).
+    urls = [_clean_url(u) for u in URL_RE.findall(mask)]
+    mask = URL_RE.sub(lambda m: "\x00" * len(m.group(0)), mask)
+
+    # 2. Repo-anchored paths.
+    paths = PATH_RE.findall(mask)
+    mask = PATH_RE.sub(lambda m: "\x00" * len(m.group(0)), mask)
+
+    # 3. Strict only: bare filenames in the residue -> class NONE.
+    bares = BARE_FILE_RE.findall(mask) if strict else []
+
+    out: list = []
+    for u in urls:
+        key = ("url", u)
+        if u and key not in seen:
+            seen.add(key)
+            out.append({
+                "kind": "url",
+                "raw": u,
+                "class": "URL-UNVERIFIED",
+                "status": "unproven",
+                "note": "no network in this build ($0 law); fetch door stubbed",
+            })
+    for p in paths:
+        key = ("path", p.rstrip("/.,;:"))
+        if key not in seen:
+            seen.add(key)
+            out.append(_classify_path(p))
+    for b in bares:
+        key = ("bare", b)
+        if key not in seen:
+            seen.add(key)
+            out.append({
+                "kind": "bare-file",
+                "raw": b,
+                "class": "NONE",
+                "status": "unproven",
+                "note": "no directory anchor; unresolvable as written",
+            })
+    return out
+
+
+def check_card(card_path: str, strict: bool = False) -> dict:
+    """Run the gate over one card. Never mutates the card. Returns the verdict row."""
+    ap = card_path.replace("\\", "/")
+    if not os.path.isabs(ap):
+        ap = os.path.normpath(os.path.join(os.getcwd(), ap))
+    if not os.path.isfile(ap):
+        raise SystemExit(f"cite_gate: card not found: {ap}")
+    with open(ap, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    citations = extract_citations(text, strict=strict)
+    counts = {"LOCAL-VERIFIED": 0, "LOCAL-MISSING": 0, "URL-UNVERIFIED": 0, "NONE": 0}
+    for c in citations:
+        counts[c["class"]] += 1
+    total = len(citations)
+    verified = counts["LOCAL-VERIFIED"]
+    cite_rate = round(verified / total, 4) if total else None
+
+    with open(ap, "rb") as f:
+        card_sha = hashlib.sha256(f.read()).hexdigest()
+
+    row = {
+        "worker": WORKER,
+        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "organ": "cite_gate",
+        "card": os.path.relpath(ap, ROOT).replace("\\", "/"),
+        "card_sha256": card_sha[:16],
+        "total_citations": total,
+        "counts": counts,
+        "cite_rate": cite_rate,
+        "complete": cite_rate == 1.0,
+        "citations": citations,
+    }
+    return row
+
+
+def write_state(row: dict) -> None:
+    """Latest row + capped append-only history, one file, deterministic."""
+    history = []
+    if os.path.isfile(STATE_PATH):
+        try:
+            with open(STATE_PATH, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+            history = prev.get("history", [])
+            if prev.get("latest"):
+                history.append(prev["latest"])
+        except (json.JSONDecodeError, OSError):
+            history = []
+    history = history[-(HISTORY_CAP - 1):]
+    history.append(row)
+    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+    with open(STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump({"latest": row, "history": history}, f, indent=2)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="mag.cite_gate", description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    chk = sub.add_parser("check", help="verify citations in a card (local-only, $0)")
+    chk.add_argument("card", help="path to the card .md")
+    chk.add_argument("--json", action="store_true", help="emit the verdict row as JSON to stdout")
+    chk.add_argument("--strict", action="store_true",
+                     help="audit mode: also capture bare filenames as class NONE")
+    args = ap.parse_args(argv)
+
+    row = check_card(args.card, strict=args.strict)
+    write_state(row)
+
+    if args.json:
+        print(json.dumps(row, indent=2))
+    else:
+        c = row["counts"]
+        print(f"CITE-GATE {row['card']}")
+        print(f"  citations: {row['total_citations']}  "
+              f"verified={c['LOCAL-VERIFIED']} missing={c['LOCAL-MISSING']} "
+              f"url-unverified={c['URL-UNVERIFIED']} none={c['NONE']}")
+        rate = row["cite_rate"]
+        print(f"  cite_rate: {'n/a (no citations)' if rate is None else rate}"
+              f"  complete={row['complete']}")
+        for cit in row["citations"]:
+            mark = {"LOCAL-VERIFIED": "+", "LOCAL-MISSING": "x",
+                    "URL-UNVERIFIED": "?", "NONE": "-"}[cit["class"]]
+            print(f"  [{mark}] {cit['class']:<14} {cit['raw']}")
+        print(f"  state row -> {os.path.relpath(STATE_PATH, ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

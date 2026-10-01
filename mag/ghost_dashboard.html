@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Sovereign — Live Analytics</title>
+<style>
+:root { --bg: #0a0a0f; --panel: #12121a; --border: #1e1e2e; --text: #cdd6f4; --dim: #6c7086; --accent: #89b4fa; --warn: #f9e2af; --danger: #f38ba8; --success: #a6e3a1; --highlight: #cba6f7; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+header { background:var(--panel); border-bottom:1px solid var(--border); padding:8px 16px; display:flex; align-items:center; justify-content:space-between; }
+header h1 { font-size:16px; font-weight:600; color:var(--accent); }
+header .status { font-size:11px; color:var(--dim); }
+header .status .dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; }
+header .dot.live { background:var(--success); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Metric cards */
+.metrics { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; padding:8px 16px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:10px 12px; }
+.card .label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+.card .value { font-size:22px; font-weight:700; margin:4px 0; }
+.card .sub { font-size:10px; color:var(--dim); }
+.card.warn { border-color:var(--warn); }
+.card.danger { border-color:var(--danger); }
+
+/* Main grid */
+.main { display:grid; grid-template-columns:2fr 1fr; grid-template-rows:1fr 1fr; gap:8px; padding:0 16px 8px; flex:1; overflow:hidden; }
+.panel { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:10px; overflow-y:auto; }
+.panel h3 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+.panel.full { grid-column:1/-1; }
+
+/* Chat */
+.chat { display:flex; flex-direction:column; }
+.chat .messages { flex:1; overflow-y:auto; font-size:12px; }
+.chat .msg { margin-bottom:6px; padding:4px 8px; border-radius:4px; max-width:90%; }
+.chat .msg.user { background:var(--accent); color:var(--bg); align-self:flex-end; margin-left:auto; }
+.chat .msg.ghost { background:var(--border); align-self:flex-start; }
+.chat .input-row { display:flex; gap:4px; margin-top:8px; }
+.chat input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:4px; font-size:12px; }
+.chat button { background:var(--accent); color:var(--bg); border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; }
+
+/* Event table */
+.evt-table { width:100%; font-size:11px; border-collapse:collapse; }
+.evt-table th { text-align:left; color:var(--dim); padding:3px 6px; border-bottom:1px solid var(--border); font-weight:500; }
+.evt-table td { padding:3px 6px; border-bottom:1px solid var(--border); }
+.evt-table .theme { color:var(--highlight); }
+.evt-table .tension { font-weight:600; }
+.evt-table .tension.high { color:var(--danger); }
+.evt-table .tension.mid { color:var(--warn); }
+
+/* Bars */
+.bar-row { display:flex; align-items:center; margin-bottom:3px; font-size:10px; }
+.bar-label { width:80px; color:var(--dim); text-align:right; padding-right:6px; }
+.bar-track { flex:1; background:var(--bg); border-radius:2px; height:14px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:2px; transition:width .5s; }
+.bar-fill.accent { background:var(--accent); }
+.bar-fill.warn { background:var(--warn); }
+.bar-fill.success { background:var(--success); }
+.bar-fill.highlight { background:var(--highlight); }
+.bar-val { width:50px; padding-left:6px; color:var(--dim); font-size:10px; }
+
+/* Story panel */
+.story-panel { margin:0 16px 8px; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:14px 18px; }
+.story-panel h3 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+.story-panel .story-body { font-size:13px; line-height:1.6; color:var(--text); }
+.story-panel .story-body h1 { font-size:16px; color:var(--accent); margin-bottom:8px; }
+.story-panel .story-body h2 { font-size:13px; color:var(--highlight); margin:8px 0 4px; }
+.story-panel .story-body em { color:var(--dim); font-style:italic; }
+.story-panel .story-body strong { color:var(--text); }
+.story-panel .story-body .warn-text { color:var(--warn); }
+.story-panel .story-body .danger-text { color:var(--danger); }
+.story-timestamp { font-size:10px; color:var(--dim); margin-top:6px; }
+
+/* Responsive */
+@media(max-width:900px){ .metrics{grid-template-columns:repeat(3,1fr)} .main{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>👻 Ghost Sovereign — Live Analytics</h1>
+  <div class="status"><span class="dot live" id="status-dot"></span><span id="status-text">connecting...</span> | <span id="clock">--</span></div>
+</header>
+
+<div class="story-panel" id="story-panel">
+  <h3>📖 What's Happening — Explained for Humans</h3>
+  <div class="story-body" id="story-body">Loading the story...</div>
+  <div class="story-timestamp" id="story-ts"></div>
+</div>
+
+<div class="metrics" id="metrics">
+  <div class="card"><div class="label">Verkle Knots</div><div class="value" id="m-knots">--</div><div class="sub" id="m-theme">--</div></div>
+  <div class="card"><div class="label">Cost Today</div><div class="value" id="m-cost">$--</div><div class="sub" id="m-cap">cap $0.50</div></div>
+  <div class="card"><div class="label">Active Agents</div><div class="value" id="m-agents">--</div><div class="sub" id="m-agent-status">--</div></div>
+  <div class="card"><div class="label">Canaries</div><div class="value" id="m-canaries">--</div><div class="sub" id="m-breached">breached: --</div></div>
+  <div class="card"><div class="label">Q Sessions</div><div class="value" id="m-qsessions">--</div><div class="sub" id="m-qstatus">--</div></div>
+</div>
+
+<div class="main">
+  <div class="panel">
+    <h3>📊 Event Stream (GA4-style real-time)</h3>
+    <table class="evt-table" id="events"><tbody></tbody></table>
+  </div>
+  <div class="panel">
+    <h3>📈 Behavioral Signals</h3>
+    <div id="beh-bars"></div>
+  </div>
+  <div class="panel" style="grid-row:2">
+    <h3>🎯 Tension Timeline</h3>
+    <div id="tension-bars"></div>
+  </div>
+  <div class="panel chat" style="grid-row:2">
+    <h3>💬 Talk to Ghost</h3>
+    <div class="messages" id="chat-msgs"><div class="msg ghost">Ghost online. Ask me anything about the system.</div></div>
+    <div class="input-row">
+      <input id="chat-input" placeholder="Ask Ghost..." onkeydown="if(event.key==='Enter')talk()">
+      <button onclick="talk()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:9000';
+
+async function fetchJSON(path) {
+  try { const r = await fetch(API+path); return await r.json(); }
+  catch(e) { return null; }
+}
+
+function fmtTime(iso) { if(!iso) return '--'; const d=new Date(iso); return d.toLocaleTimeString(); }
+function fmtCost(n) { return '$'+Number(n||0).toFixed(4); }
+
+async function refresh() {
+  // Health
+  const health = await fetchJSON('/api/v1/health');
+  if (health && health.ok) {
+    document.getElementById('status-dot').className = 'dot live';
+    document.getElementById('status-text').textContent = 'live | uptime ' + Math.round(health.uptime_seconds||0) + 's';
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+  } else {
+    document.getElementById('status-dot').className = 'dot';
+    document.getElementById('status-text').textContent = 'disconnected';
+  }
+
+  // Lattice
+  const lattice = await fetchJSON('/api/v1/lattice');
+  if (lattice && lattice.ok) {
+    document.getElementById('m-knots').textContent = lattice.verkle?.total_knots || '--';
+    document.getElementById('m-theme').textContent = 'dominant: '+(lattice.quantized?.dominant||'?')+' | drift:'+(lattice.quantized?.drift||0);
+    document.getElementById('m-qsessions').textContent = lattice.q_sessions?.active_sessions || 0;
+    document.getElementById('m-qstatus').textContent = lattice.q_sessions?.crash_survivability?.split(' — ')[0] || '--';
+    document.getElementById('m-canaries').textContent = (lattice.leak_detector?.canaries_active||0)+' active';
+    document.getElementById('m-breached').textContent = 'breached: '+(lattice.leak_detector?.canaries_breached||0);
+
+    // Event table
+    const tail = lattice.verkle?.tail || [];
+    const tbody = document.querySelector('#events tbody');
+    tbody.innerHTML = tail.slice(-10).reverse().map(k =>
+      `<tr><td>${fmtTime(k.ts)}</td><td class="theme">${k.theme||'?'}</td><td class="tension ${k.tension>0.5?'high':k.tension>0.3?'mid':''}">${Number(k.tension||0).toFixed(3)}</td><td>${(k.session||'').slice(0,25)}</td></tr>`
+    ).join('');
+
+    // Tension bars
+    const tb = document.getElementById('tension-bars');
+    tb.innerHTML = tail.slice(-10).map(k => {
+      const t = Number(k.tension||0); const pct = Math.round(t*100);
+      return `<div class="bar-row"><div class="bar-label">${(k.theme||'?').slice(0,10)}</div><div class="bar-track"><div class="bar-fill ${t>0.5?'warn':'accent'}" style="width:${pct}%"></div></div><div class="bar-val">${pct}%</div></div>`;
+    }).join('');
+
+    // Behavioral bars (event distribution from lattice)
+    const qs = lattice.quantized || {};
+    const themes = qs.theme_distribution || {};
+    const bb = document.getElementById('beh-bars');
+    if (Object.keys(themes).length > 0) {
+      const total = Object.values(themes).reduce((a,b)=>a+b,0);
+      bb.innerHTML = Object.entries(themes).slice(0,8).map(([k,v]) => {
+        const pct = Math.round(v/total*100);
+        return `<div class="bar-row"><div class="bar-label">${k.slice(0,12)}</div><div class="bar-track"><div class="bar-fill ${v>total*0.3?'highlight':'success'}" style="width:${pct}%"></div></div><div class="bar-val">${v}</div></div>`;
+      }).join('');
+    }
+  }
+
+  // Cost
+  const cost = await fetchJSON('/api/v1/cost');
+  if (cost && cost.spend) {
+    document.getElementById('m-cost').textContent = fmtCost(cost.spend.total_today);
+    const capEl = document.getElementById('m-cap');
+    const dailyPct = cost.caps?.spend?.daily?.pct || 0;
+    if (dailyPct > 80) {
+      capEl.textContent = 'cap $'+cost.caps_config?.daily+' ⚠️ '+dailyPct+'%';
+      document.getElementById('m-cost').parentElement.classList.add('danger');
+    } else if (dailyPct > 50) {
+      capEl.textContent = 'cap $'+cost.caps_config?.daily+' ⚡ '+dailyPct+'%';
+      document.getElementById('m-cost').parentElement.classList.add('warn');
+    }
+    document.getElementById('m-agents').textContent = cost.running_agents || 0;
+    document.getElementById('m-agent-status').textContent = cost.status || '--';
+  }
+}
+
+// Chat
+async function talk() {
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  if (!q) return;
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML += `<div class="msg user">${q}</div>`;
+  input.value = '';
+  msgs.innerHTML += `<div class="msg ghost">...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch(API+'/api/v1/talk', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query:q, provider:'ollama', model:'qwen2.5-coder:7b'})
+    });
+    const data = await r.json();
+    const last = msgs.lastElementChild;
+    last.textContent = data.answer || data.error || 'No response';
+  } catch(e) {
+    const last = msgs.lastElementChild;
+    last.textContent = 'Error: '+e.message;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// Initial load + poll
+refresh();
+refreshStory();
+setInterval(refresh, 5000);
+setInterval(refreshStory, 30000);
+
+async function refreshStory() {
+  try {
+    const r = await fetch(API+'/api/v1/story');
+    const data = await r.json();
+    if (data && data.ok && data.story) {
+      // Convert markdown-ish to HTML
+      let html = data.story
+        .replace(/# (.*)/g, '<h1>$1</h1>')
+        .replace(/## (.*)/g, '<h2>$1</h2>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/⚠️/g, '<span class="warn-text">⚠️</span>')
+        .replace(/🚨/g, '<span class="danger-text">🚨</span>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\*_(.*?)_\*/g, '<em>$1</em>');
+      document.getElementById('story-body').innerHTML = '<p>'+html+'</p>';
+      document.getElementById('story-ts').textContent = 'Updated: '+new Date(data.ts).toLocaleTimeString();
+    }
+  } catch(e) {}
+}
+</script>
+</body>
+</html>

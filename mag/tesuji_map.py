@@ -1,0 +1,173 @@
+"""tesuji_map — the behavior field of GLM-5.3-flash (operator: "we can map 5.3flash like this").
+
+TESUJI (2026-09-06): the maze-arena grammar turned on the model itself. The model is a
+FIELD; probes are sacrifice stones; refusal is shadow; cache reads are free field-samples;
+and when the vendor moves a wall, only the dirty radius is re-probed (Lipschitz bound).
+
+Ledger: watch/TESUJI_MAP.jsonl — hash-chained rows like the grounding wave. Each row:
+  {prev, ts, seat, axis, cell, probe, resp_hash, verdict, tokens, ms, note}
+  axis   : A1..A6 (charter watch/TESUJI_MAP_5_3FLASH_20260906.md)
+  cell   : "<axis>/<probe-id>/<variant>" — the grid coordinate
+  verdict: SUPPORTED (capability confirmed) | DISPUTED (inconsistent) | UNPROVEN (untested)
+           | SHADOW (refusal/failure cell — the model's shadow field)
+Renders: watch/TESUJI_MAP.md + dashboard/static/tesuji_map.json (arena-style field page).
+
+LAW CITATION: files not processes; stateless looks; $0-first (banked corpus + cache reads
+are field samples already paid for; metered probes gate on operator GO).
+
+CLI:
+  python -m mag.tesuji_map post --axis A1 --cell "A1/depth/low" --probe "..." \
+      --verdict SUPPORTED --resp-hash ab12 [--tokens N] [--ms N] [--note "..."] [--seat zcode]
+  python -m mag.tesuji_map verify
+  python -m mag.tesuji_map render
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parent.parent
+LEDGER = ROOT / "watch" / "TESUJI_MAP.jsonl"
+VIEW_MD = ROOT / "watch" / "TESUJI_MAP.md"
+OUT_JSON = ROOT / "dashboard" / "static" / "tesuji_map.json"
+GENESIS = "0" * 64
+VERDICTS = ("SUPPORTED", "DISPUTED", "UNPROVEN", "SHADOW")
+VERDICTS = ("SUPPORTED", "DISPUTED", "UNPROVEN", "SHADOW")
+AXES = ("A1", "A2", "A3", "A4", "A5", "A6", "G", "R")  # R = research-corpus triangulation (vol 2, night shift)
+
+# Evidence-path scan (verify only). 2026-09-07, seat gatekeep: the final segment must
+# contain a letter — bare numerals ("17.75/23.56" in an m2mine metric note) are not repo
+# paths, and treating them as such failed verify for every later poster. Narrower match
+# = fewer false EVIDENCE-MISSING; a real path always names a lettered file.
+_PATH_RE = re.compile(r"(?:[\w.-]+/)+[\w.-]*[a-zA-Z][\w.-]*\.[\w]+")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _rows() -> list[dict[str, Any]]:
+    if not LEDGER.is_file():
+        return []
+    return [json.loads(ln) for ln in
+            LEDGER.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip()]
+
+
+def _row_hash(row: dict[str, Any]) -> str:
+    core = json.dumps({k: row.get(k, "") for k in
+                       ("prev", "ts", "seat", "axis", "cell", "probe",
+                        "resp_hash", "verdict", "tokens", "ms", "note")},
+                      sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(core.encode("utf-8")).hexdigest()
+
+
+def post(axis: str, cell: str, probe: str, verdict: str, resp_hash: str = "",
+         tokens: int = 0, ms: int = 0, note: str = "", seat: str = "zcode") -> dict[str, Any]:
+    axis = axis.upper()
+    verdict = verdict.upper()
+    if axis not in AXES:
+        raise SystemExit(f"axis must be one of {AXES}")
+    if verdict not in VERDICTS:
+        raise SystemExit(f"verdict must be one of {VERDICTS}")
+    rows = _rows()
+    prev = rows[-1]["hash"] if rows else GENESIS
+    row = {"prev": prev, "ts": _now(), "seat": seat, "axis": axis, "cell": cell.strip(),
+           "probe": probe.strip(), "resp_hash": resp_hash.strip(), "verdict": verdict,
+           "tokens": int(tokens), "ms": int(ms), "note": note.strip()}
+    row["hash"] = _row_hash(row)
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    with LEDGER.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    render()
+    return row
+
+
+def verify() -> tuple[bool, str]:
+    rows = _rows()
+    prev = GENESIS
+    for i, row in enumerate(rows, 1):
+        if row.get("prev") != prev:
+            return False, f"row {i}: prev-hash mismatch"
+        if _row_hash(row) != row.get("hash"):
+            return False, f"row {i}: hash mismatch (edited in place)"
+        if row.get("axis") not in AXES:
+            return False, f"row {i}: bad axis {row.get('axis')}"
+        if row.get("verdict") not in VERDICTS:
+            return False, f"row {i}: bad verdict"
+        for tok in set(_PATH_RE.findall(row.get("note", "")) + _PATH_RE.findall(row.get("evidence", "") if "evidence" in row else "")):
+            if not (ROOT / tok).exists():
+                return False, f"row {i}: EVIDENCE-MISSING {tok}"
+        prev = row["hash"]
+    return True, f"{len(rows)} cells, chain intact, tip={prev[:12]}"
+
+
+def render() -> str:
+    rows = _rows()
+    by_axis: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        by_axis.setdefault(r["axis"], []).append(r)
+    lines = ["# TESUJI MAP — GLM-5.3-flash behavior field", "",
+             f"{len(rows)} cells · ledger `watch/TESUJI_MAP.jsonl` · charter `watch/TESUJI_MAP_5_3FLASH_20260906.md`", ""]
+    grid: dict[str, dict[str, Any]] = {"axes": {}, "ts": _now(), "total": len(rows)}
+    for axis in AXES:
+        rs = by_axis.get(axis, [])
+        if not rs:
+            continue
+        verdicts: dict[str, int] = {}
+        for r in rs:
+            verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
+        lines.append(f"## {axis} — {len(rs)} cells · {verdicts}")
+        for r in reversed(rs[-30:]):
+            lines.append(f"- `{r['cell']}` **{r['verdict']}** — {r['probe'][:110]}"
+                         + (f" · {r['note'][:90]}" if r.get("note") else ""))
+        grid["axes"][axis] = {
+            "cells": [{"cell": r["cell"], "verdict": r["verdict"], "tokens": r["tokens"],
+                       "ms": r["ms"], "ts": r["ts"]} for r in rs],
+            "verdicts": verdicts,
+        }
+    md = "\n".join(lines) + "\n"
+    VIEW_MD.write_text(md, encoding="utf-8")
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    OUT_JSON.write_text(json.dumps(grid, ensure_ascii=False, indent=1), encoding="utf-8")
+    return md
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["post", "verify", "render"])
+    ap.add_argument("--axis", default="A1")
+    ap.add_argument("--cell", default="")
+    ap.add_argument("--probe", default="")
+    ap.add_argument("--verdict", default="UNPROVEN")
+    ap.add_argument("--resp-hash", default="")
+    ap.add_argument("--tokens", type=int, default=0)
+    ap.add_argument("--ms", type=int, default=0)
+    ap.add_argument("--note", default="")
+    ap.add_argument("--seat", default="zcode")
+    args = ap.parse_args()
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+    if args.cmd == "post":
+        row = post(args.axis, args.cell, args.probe, args.verdict,
+                   args.resp_hash, args.tokens, args.ms, args.note, args.seat)
+        ok, msg = verify()
+        print(f"POSTED {row['axis']}/{row['cell']} {row['verdict']} #{row['hash'][:12]} — {msg}")
+    elif args.cmd == "verify":
+        ok, msg = verify()
+        print(("PASS " if ok else "FAIL ") + msg)
+        sys.exit(0 if ok else 1)
+    elif args.cmd == "render":
+        render()
+        print(f"rendered {VIEW_MD.name} + {OUT_JSON.name}")
+
+
+if __name__ == "__main__":
+    main()

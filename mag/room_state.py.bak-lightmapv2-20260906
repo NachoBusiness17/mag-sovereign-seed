@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""room_state.py — seed the salon lightmap v2 ("the room that remembers").
+
+Reads the trajectory stream tail (memory/trajectory/steps.jsonl, trajectory_step.v1)
+and emits dashboard/static/room_state.json: the fleet's real anatomy as organ walls,
+which walls the seat's attention actually touched recently (lit + hit counts), and
+which walls are invariant candidates (label+position stable across versions —
+load-bearing walls cast the longest shadows).
+
+$0 · stdlib only · one-shot, no daemon. Night shift runs:
+    python mag/room_state.py [--window 200]
+Before each write the previous state is archived to room_state.prev.json so the
+cross-version invariant diff is real, not declared.
+"""
+import argparse
+import json
+import os
+import shutil
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STEPS = os.path.join(ROOT, "memory", "trajectory", "steps.jsonl")
+OUT = os.path.join(ROOT, "dashboard", "static", "room_state.json")
+PREV = os.path.join(ROOT, "dashboard", "static", "room_state.prev.json")
+
+# The room's real anatomy. x/y/w/h place each organ on the 560x560 lightmap canvas.
+# tokens = substrings matched against trajectory step commands (attention probe).
+# invariant=True seeds the canonical three: chain never moved since Aug, the room
+# beats hourly, boot_check gates every window (operator brief, 09-06).
+WALLS = [
+    {"id": "chain",      "label": "verkle chain · skeleton",   "kind": "skeleton",
+     "x": 70,  "y": 80,  "w": 26,  "h": 260, "invariant": True,
+     "tokens": ["verkle_chain", "verkle_knot"]},
+    {"id": "memory",     "label": "memory/biography",          "kind": "memory",
+     "x": 150, "y": 56,  "w": 130, "h": 34,  "invariant": False,
+     "tokens": ["biography", "MEMORY.md"]},
+    {"id": "watch",      "label": "watch · ledger cards",      "kind": "ledger",
+     "x": 150, "y": 150, "w": 110, "h": 24,  "invariant": False,
+     "tokens": ["watch/"]},
+    {"id": "immune",     "label": "guards · refeed_guard",     "kind": "immune",
+     "x": 420, "y": 60,  "w": 96,  "h": 26,  "invariant": False,
+     "tokens": ["refeed_guard", "watchdog", "grounding_wave"]},
+    {"id": "lanes",      "label": "lanes · auth_tracks",       "kind": "circulation",
+     "x": 400, "y": 170, "w": 124, "h": 24,  "invariant": False,
+     "tokens": ["auth_tracks", "fuel_feed"]},
+    {"id": "room",       "label": "the room · CONVO.md",       "kind": "room",
+     "x": 250, "y": 250, "w": 92,  "h": 26,  "invariant": True,
+     "tokens": ["CONVO.md", "room.jsonl", "queue/handoff"]},
+    {"id": "board",      "label": "the board · room.html",     "kind": "board",
+     "x": 440, "y": 280, "w": 84,  "h": 26,  "invariant": False,
+     "tokens": ["room.html", "board.js", "live.html"]},
+    {"id": "organs",     "label": "mag/* organs",              "kind": "organs",
+     "x": 330, "y": 390, "w": 140, "h": 30,  "invariant": False,
+     "tokens": ["mag/", "overseer"]},
+    {"id": "boot_check", "label": "boot_check · gate",         "kind": "gate",
+     "x": 60,  "y": 420, "w": 112, "h": 26,  "invariant": True,
+     "tokens": ["boot_check", "boot.py"]},
+    {"id": "sensors",    "label": "sensors · trajectory",      "kind": "nervous",
+     "x": 180, "y": 480, "w": 160, "h": 22,  "invariant": False,
+     "tokens": ["steps.jsonl", "read_receipts", "trajectory"]},
+]
+
+
+def attention(window):
+    """Hit counts per wall id across the last `window` trajectory steps."""
+    hits = {w["id"]: 0 for w in WALLS}
+    if not os.path.exists(STEPS):
+        return hits, 0
+    with open(STEPS, encoding="utf-8", errors="replace") as f:
+        lines = f.read().strip().splitlines()[-window:]
+    for line in lines:
+        try:
+            cmd = json.loads(line).get("command", "") or ""
+        except Exception:
+            continue
+        for w in WALLS:
+            if any(t in cmd for t in w["tokens"]):
+                hits[w["id"]] += 1
+    return hits, len(lines)
+
+
+def persisted_invariants(prev):
+    """Walls whose label+position survive from the previous version."""
+    if not os.path.exists(PREV):
+        return set()
+    try:
+        old = {w.get("id"): w for w in json.load(open(PREV, encoding="utf-8")).get("walls", [])}
+    except Exception:
+        return set()
+    keep = set()
+    for w in WALLS:
+        p = old.get(w["id"])
+        if p and (p.get("label"), p.get("x"), p.get("y"), p.get("w"), p.get("h")) == \
+                 (w["label"], w["x"], w["y"], w["w"], w["h"]):
+            keep.add(w["id"])
+    return keep
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--window", type=int, default=200)
+    args = ap.parse_args()
+
+    hits, scanned = attention(args.window)
+    keep = persisted_invariants(None)
+    walls = []
+    for w in WALLS:
+        walls.append({k: w[k] for k in ("id", "label", "x", "y", "w", "h", "kind", "invariant")}
+                     | {"lit": hits[w["id"]] > 0, "hits": hits[w["id"]],
+                        "invariant": bool(w["invariant"] or w["id"] in keep)})
+
+    if os.path.exists(OUT):
+        shutil.copyfile(OUT, PREV)  # archive for the next version's diff
+
+    state = {
+        "schema": "room_state.v1",
+        "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source": "memory/trajectory/steps.jsonl (trajectory_step.v1), last %d steps" % scanned,
+        "window": scanned,
+        "lit": [w["id"] for w in walls if w["lit"]],
+        "walls": walls,
+    }
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=1)
+    inv = sum(1 for w in walls if w["invariant"])
+    print("room_state.json written: %d organ walls, %d lit, %d invariant candidates (window=%d)"
+          % (len(walls), len(state["lit"]), inv, scanned))
+
+
+if __name__ == "__main__":
+    main()
