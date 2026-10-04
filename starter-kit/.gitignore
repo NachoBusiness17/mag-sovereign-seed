@@ -1,0 +1,20 @@
+# THE NEVER-COMMIT LAW, enforced: .env (and its siblings/backups) hold
+# every key you own.
+.env
+.env.*
+*.env
+*.key
+*secret*
+
+# kit runtime droppings
+__pycache__/
+.profile-selftest/
+.law-gate-profile/
+.mimosa/
+*.pyc
+
+# your profile and inbox are YOURS to choose: commit them if this repo is
+# private to you; keep them ignored if you publish. Default: ignored.
+memory/
+inbox/
+exports/

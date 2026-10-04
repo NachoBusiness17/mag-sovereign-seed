@@ -1,0 +1,61 @@
+{
+  "schema": "laws.v1",
+  "laws": [
+    {
+      "id": "never-commit-secrets",
+      "statement": ".env, keys, and secret material are never committed, pasted, or hardcoded; rotation happens the same day a key leaks.",
+      "why": "One commit of .env leaks every key you own to anyone who ever clones the repo.",
+      "paid_for_by": "the origin's own near-misses (bytecode paths leaking usernames in a public pack; a live key caught pre-commit by its own gate)",
+      "enforcement": { "kind": "check", "check": "gitignore-present", "severity": "high" }
+    },
+    {
+      "id": "receipt-before-claims",
+      "statement": "File the receipt (what was done, the evidence, what is owed) before claiming done.",
+      "why": "Claims without evidence rot into trust-then-collapse; the receipt is the only durable record of work.",
+      "paid_for_by": "every audit that found claimed-done work with no bytes behind it",
+      "enforcement": { "kind": "check", "check": "receipts-before-claims", "severity": "medium" }
+    },
+    {
+      "id": "profile-census-clean",
+      "statement": "The memory index carries no phantom rows: every row points at a live file.",
+      "why": "A phantom index is silent corruption - the system believes facts it cannot produce.",
+      "paid_for_by": "an origin index measured 93 percent phantom before anyone noticed",
+      "enforcement": { "kind": "check", "check": "profile-census-clean", "severity": "high" }
+    },
+    {
+      "id": "never-fabricate",
+      "statement": "Every claim carries evidence: a path:line read, a command and its output, or a fetched URL; unreachable sources are named and the claim marked unverified.",
+      "why": "Unverifiable claims are indistinguishable from fabrications once they spread.",
+      "paid_for_by": "fabrication deaths: an orchestrator brain that invented evidence twice and was executed by its own audit",
+      "enforcement": { "kind": "check", "check": "secrets-absent", "severity": "high" }
+    },
+    {
+      "id": "interrupts-steer-never-kill",
+      "statement": "Interrupting a running lane steers it; nothing kills host processes it did not start.",
+      "why": "A system that nukes the user's machine when corrected will be switched off the first time it happens.",
+      "paid_for_by": "operator law after watching lanes die to interrupts",
+      "enforcement": { "kind": "prose", "severity": "medium" }
+    },
+    {
+      "id": "dogfood-cheap-before-spend",
+      "statement": "Prove the loop at $0, then hours of rented power, then always-on; huge spend commits come last.",
+      "why": "Big spends on unproven loops buy lessons at the maximum possible price.",
+      "paid_for_by": "the patience law: capped cents-per-day runs that stood themselves down at a covenant floor",
+      "enforcement": { "kind": "prose", "severity": "medium" }
+    },
+    {
+      "id": "append-only-allow-failures",
+      "statement": "Logs append; earlier entries stay untouched; a failed append is recorded as the next entry, never a rollback.",
+      "why": "Immutable sequences replay exactly what happened, including failures - the only honest history.",
+      "paid_for_by": "the event-sourced replay doctrine",
+      "enforcement": { "kind": "prose", "severity": "low" }
+    },
+    {
+      "id": "laws-carry-enforcement",
+      "statement": "A law without an enforcement hook is prose-begging; wire it or rank it as debt.",
+      "why": "Prose laws decay into decoration; enforced laws compound.",
+      "paid_for_by": "code-as-law: regulation lives in the carrier (config, gates, schemas), not in pleading",
+      "enforcement": { "kind": "check", "check": "gitignore-present", "severity": "low" }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "starter-kit law carrier (code-as-law)",
+  "description": "Laws ship as config: each row is a law with its why and its enforcement hook. law_gate.py validates this file and runs every machine-checkable enforcement. A law with enforcement 'prose' is legal but unenforced - the gate reports it as debt.",
+  "type": "object",
+  "required": ["schema", "laws"],
+  "properties": {
+    "schema": { "const": "laws.v1" },
+    "laws": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "why", "enforcement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "statement": { "type": "string", "description": "the law, stated plainly" },
+          "why": { "type": "string", "description": "what happens without it" },
+          "paid_for_by": { "type": "string", "description": "the failure or correction that bred it (free text)" },
+          "enforcement": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "enum": ["check", "prose"], "description": "check = machine-enforced by law_gate; prose = unenforced debt" },
+              "check": { "type": "string", "description": "named check the gate runs: gitignore-present, secrets-absent, profile-census-clean, receipts-before-claims" },
+              "severity": { "enum": ["high", "medium", "low"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}
