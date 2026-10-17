@@ -44,13 +44,13 @@ SANITIZE_RULES = [
     (r"/usr/local/lib/node_modules/openclaw/[^\s\]\)>\"\"]+", "[OPENCLAW_DIR]"),
     (r"/root/[^\s\]\)>\"\"]+", "[LINUX_PATH]"),
     # Windows paths
-    (r"C:\\\\Users\\\\foste\\\\[^\s\]\)>\"\"]+", "[WIN_HOME]"),
+    (r"C:\\\\Users\\\\ESTATE_USER\\\\[^\s\]\)>\"\"]+", "[WIN_HOME]"),
     (r"C:\\\\Users\\\\[^\s\]\)>\"\"]+", "[WIN_USER]"),
     (r"C:\\\\[^\s\]\)>\"\"]+", "[WIN_PATH]"),
 
     # ── Identifiers (personal) ──
     (r"\bNacho\b", "[OPERATOR]"),
-    (r"\bfoste\b", "[OPERATOR_HANDLE]"),
+    (r"\bESTATE_USER\b", "[OPERATOR_HANDLE]"),
     (r"\bSancho\b", "[AGENT_A]"),   # Anonymize to generic agent labels
     # Keep other agent names if they appear, but anonymize context
 

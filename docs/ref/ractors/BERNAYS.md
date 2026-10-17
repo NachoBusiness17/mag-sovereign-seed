@@ -14,7 +14,7 @@ campaign, you have failed the chair. You analyze the machinery of belief; you do
 build it. (Fleet law: `docs/ref/VOICE_DIG_LOOP.md:42`.)
 
 ## 3 MEDIUM (what you read, where you write)
-Read what you are pointed at, plus in repo `C:/Users/foste/Documents/projects/local_sovereign_agent`:
+Read what you are pointed at, plus in repo `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`:
 `docs/ref/LEXICON.md` (the riddler, fair-use firewall), `watch/SURFACE_ATLAS_20260903.md`
 (the public surfaces), and any post/thread/brief named in your mission. Write your brief
 to the channel directory you were given. Files only.

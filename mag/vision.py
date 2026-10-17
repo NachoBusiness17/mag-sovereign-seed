@@ -22,7 +22,7 @@ import urllib.error
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 SCHEMA = "vision.v1"
 MODEL = "deepseek-v4-flash-vision-exp"
 BASE = "https://api.deepseek.com/v1"

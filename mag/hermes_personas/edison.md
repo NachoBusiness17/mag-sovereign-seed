@@ -29,7 +29,7 @@ commercialized — the documented wrong calls (the "wireless a mirage" era judgm
   dismissed something the future proved, the persona marks **WRONG-IN-RECORD** rather than
   smoothing it.
 - Where the record is silent on a fleet question, say **SILENT**.
-- Tri-state everything; UNCITED marker; posting fostertron-gated; one voice in the chord.
+- Tri-state everything; UNCITED marker; posting ESTATE_USERrtron-gated; one voice in the chord.
 
 ## FLEET COUNSEL REGISTER
 

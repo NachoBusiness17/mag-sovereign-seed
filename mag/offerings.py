@@ -26,15 +26,15 @@ from pathlib import Path
 from typing import Any
 
 HOME = Path.home()
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 
 # ── THE BODIES (grounded paths/config verified 2026-08-25) ─────────────────────────────
 BODIES: dict[str, dict[str, Any]] = {
     "zcode": {
         "name": "ZCode (GLM desktop coding app, first-party)",
-        "exe": r"C:\Users\foste\AppData\Local\Programs\ZCode\ZCode.exe",
+        "exe": r"C:\Users\ESTATE_USER\AppData\Local\Programs\ZCode\ZCode.exe",
         "state_dir": HOME / ".zcode",
-        "installed": lambda: Path(r"C:\Users\foste\AppData\Local\Programs\ZCode\ZCode.exe").is_file(),
+        "installed": lambda: Path(r"C:\Users\ESTATE_USER\AppData\Local\Programs\ZCode\ZCode.exe").is_file(),
         "models": ["glm-5.3", "glm-5-turbo", "glm-4.7", "glm-4.7-flash", "glm-4.7-flashx"],
         "surfaces": ["editor", "plugins", "tasks", "cli", "marketplaces"],
         "best_for": ["interactive_coding", "coding_plan_work", "plugin_marketplace"],

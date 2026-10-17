@@ -7,7 +7,7 @@ that jass and chariot our way to our game."
 THE REFRAME (grounded, sacred-cow-free): grok build authenticates by SESSION in a grok home dir,
 and grok honors $env:GROK_HOME (PROVEN 2026-08-16). So each account is a SEAT = a home dir:
     nacho = ~/.grok     (nachobusinesscorp@gmail.com)
-    sd    = ~/.grok-sd  (fostertron@gmail.com)
+    sd    = ~/.grok-sd  (ESTATE_USERrtron@gmail.com)
 Two seats = two SEPARATE grok processes, each with its own GROK_HOME. That's the parallel driver:
 not a key chain, not a container — just N processes on N homes.
 
@@ -56,7 +56,7 @@ SPEND_LEDGER = ROOT / "memory" / "runs" / "seat_spend" / "spend.jsonl"
 # The two seats (operator has exactly two grok accounts).
 SEATS: dict[str, dict[str, Any]] = {
     "nacho": {"home": str(Path.home() / ".grok"), "email": "nachobusinesscorp@gmail.com"},
-    "sd": {"home": str(Path.home() / ".grok-sd"), "email": "fostertron@gmail.com"},
+    "sd": {"home": str(Path.home() / ".grok-sd"), "email": "ESTATE_USERrtron@gmail.com"},
 }
 DEFAULT_SEAT_ORDER = ["nacho", "sd"]
 

@@ -73,7 +73,7 @@ mint time, and every law still names the jacket it kills.
   stealth_driver's selffeed, which the seat ran while fixing it in others).
 - Mechanism: tools/seat_law_gate.py:37 (BARE_PY regex), :76-83 (exit 2 with
   the AGENTS.md citation), registered PreToolUse on Bash|Write|Edit at
-  C:/Users/foste/.zcode/cli/config.json:50. Fail-open on internal error
+  C:/Users/ESTATE_USER/.zcode/cli/config.json:50. Fail-open on internal error
   (seat_law_gate.py:26-27,114-115): a broken gate never blocks the fleet.
 - Falsifier: a Bash tool call invoking bare `python` that returns exit 0
   through the gate means the hook is dead or unregistered.

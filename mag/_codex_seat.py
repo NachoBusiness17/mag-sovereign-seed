@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 OUT = ROOT / "memory" / "runs" / "codex_seat"
 
 # Constant command — prompt travels via stdin, never argv.
-CMD = [r"C:\Users\foste\AppData\Local\hermes\node\codex.cmd", "exec",
+CMD = [r"C:\Users\ESTATE_USER\AppData\Local\hermes\node\codex.cmd", "exec",
        "-s", "workspace-write", "-"]
 
 TASKS = {
@@ -51,7 +51,7 @@ TASKS = {
     ),
     "fold-batch-1": (
         "Read the memory topic files (*.md except MEMORY.md) under "
-        "C:/Users/foste/.zcode/cli/memories/projects/projects-0fb5e3041b59db21/memory/ "
+        "C:/Users/ESTATE_USER/.zcode/cli/memories/projects/projects-0fb5e3041b59db21/memory/ "
         "(READ-ONLY — never modify anything there). For each of the 30 largest, write a "
         "compressed 3-6 line digest to memory/runs/codex_seat/fold/<name>.md including "
         "the frontmatter's type (user/feedback/project/reference) and a "

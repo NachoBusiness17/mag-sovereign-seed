@@ -385,7 +385,7 @@ def inspect_surface() -> dict[str, Any]:
         "paths": {
             "host": str(INBOX),
             "container": "/board/inbox",
-            "wsl": "/mnt/c/Users/foste/Documents/projects/local_sovereign_agent/watch/inbox",
+            "wsl": "/mnt/c/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/watch/inbox",
             "index": "/board/inbox/INDEX.json",
             "contract": "/board/inbox/SHARED_SURFACE_CONTRACT.json"
         },
@@ -428,7 +428,7 @@ def main() -> int:
             "schema": "shared_surface.path.v1",
             "host": str(INBOX),
             "container": "/board/inbox",
-            "wsl": "/mnt/c/Users/foste/Documents/projects/local_sovereign_agent/watch/inbox",
+            "wsl": "/mnt/c/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/watch/inbox",
             "read_first": "/board/inbox/INDEX.json"
         }, indent=2))
         return 0

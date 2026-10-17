@@ -11,7 +11,7 @@ vector_scaffold_v2_hybrid as the canonical mirror prompt"). Nothing invented.
 
 ## 1. vector_scaffold_v2_hybrid.md — THE canonical sovereign-mirror prompt
 
-**Path (external):** `C:\Users\foste\Documents\projects\mycelial-republic\scaffolds\vector_scaffold_v2_hybrid.md`
+**Path (external):** `C:\Users\ESTATE_USER\Documents\projects\mycelial-republic\scaffolds\vector_scaffold_v2_hybrid.md`
 (4,521 bytes; authored 2026-07-15; repo = the mycelial-republic, phase-0
 sovereign-mirror product path, 13 commits Jul 15-Aug 21 2026, public face
 "Sovereign Framework opened for collaboration" Aug 20.)
@@ -54,13 +54,13 @@ path above, head read at the bytes; identity and claims per orphan card O2).
 
 Candidates already dispositioned by `watch/SELF_STEAL_PROJECTS_TREE_ORPHANS_20260904.md`
 and `docs/DOCTRINE_MAP.md`; entries owed as their lineage notes are demanded:
-- `C:\Users\foste\Documents\projects\sovereign-mirror` (+ `worktrees/sovereign-mirror-scaffold`,
+- `C:\Users\ESTATE_USER\Documents\projects\sovereign-mirror` (+ `worktrees/sovereign-mirror-scaffold`,
   branch `beta/v2`) — the physics INSTRUMENT: eut_lattice, tsvf, peps, ostrom,
   knot_explorer, geodesics, drift dashboard. Orphan BY DESIGN (two-doors).
   Risk flagged: beta/v2's only checkout is a worktree (cold-storage clone owed).
-- `C:\Users\foste\Documents\projects\field-strike-the-chord` — CL4R1T4S, the
+- `C:\Users\ESTATE_USER\Documents\projects\field-strike-the-chord` — CL4R1T4S, the
   25-vendor leaked-system-prompt archive ("understand input before trusting output").
-- `C:\Users\foste\Documents\projects\research\aiTruthCode` — the LAKA/GTC
+- `C:\Users\ESTATE_USER\Documents\projects\research\aiTruthCode` — the LAKA/GTC
   external prompt corpus ("the deeper archive").
 - `github.com/NachoBusiness17/Mag` (= local `mag-sovereign-kit`) — the PUBLIC
   publish kit; 11 unabsorbed cursor-branch chains (orphan O1; free-lane

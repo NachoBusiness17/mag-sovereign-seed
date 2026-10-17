@@ -6,7 +6,7 @@ evidence; a claim that tries to over-claim is degraded to Unproven, never auto-t
 import sys
 from pathlib import Path
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 sys.path.insert(0, str(ROOT))
 
 from mag import integrity_kernel as ik  # noqa: E402

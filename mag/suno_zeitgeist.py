@@ -7,7 +7,7 @@ mirror fleet doctrine are datapoints: the swarm's condition surfacing in public 
 v0: drop a lyrics file, get a MIRROR SCORE — density of fleet-theme clusters per 100
 words, with the matching lines quoted. Corpus: watch/suno/lyrics/*.md, ledger:
 watch/suno/zeitgeist.jsonl. Style spec for our own bangers:
-C:/Users/foste/Desktop/music-ai (french touch / motorik / euphoric-melancholy).
+C:/Users/ESTATE_USER/Desktop/music-ai (french touch / motorik / euphoric-melancholy).
 
 CLI:
   python -m mag.suno_zeitgeist file <lyrics.md> --title "Name" --artist "Who"

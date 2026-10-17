@@ -30,7 +30,7 @@ ORPHAN_LEDGER = ROOT / "memory" / "runs" / "batch5_20260906" / "ORPHAN_LEDGER_20
 
 # MEMORY.md: harness index budget = one-line entries < 200 chars.
 _MEM_CANDIDATES = [
-    Path("C:/Users/foste/.zcode/cli/memories/projects/projects-0fb5e3041b59db21/memory/MEMORY.md"),
+    Path("C:/Users/ESTATE_USER/.zcode/cli/memories/projects/projects-0fb5e3041b59db21/memory/MEMORY.md"),
 ]
 
 

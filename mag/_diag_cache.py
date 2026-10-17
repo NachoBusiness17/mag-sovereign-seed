@@ -1,5 +1,5 @@
 import sys, json
-sys.path.insert(0, r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+sys.path.insert(0, r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 from models.providers import chat_provider
 from mag.rib_cache import FROZEN_RIB
 

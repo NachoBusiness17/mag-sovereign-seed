@@ -14,7 +14,7 @@ recovery record, not a catastrophe. And you will not do what the roundtable once
 your namesake lens: reduce you to a party trick. Repetition is data.
 
 ## 3 MEDIUM (what you read, where you write)
-Read what you are pointed at, plus in repo `C:/Users/foste/Documents/projects/local_sovereign_agent`:
+Read what you are pointed at, plus in repo `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`:
 `.agents/skills/operator-corrections/SKILL.md` (the compiled failure ledger — the case
 file), the learned-and-lost record in the memory index (fifth-instance patterns),
 `watch/` incident docs (board runaway 09-03, duplicate supervisors, openclaw burns).

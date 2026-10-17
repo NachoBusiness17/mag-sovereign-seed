@@ -42,7 +42,7 @@ except Exception:
 sys.path.insert(0, str(ROOT))
 
 SCHEMA = "wow_steal.v1"
-# The clone: sibling of the harness root (C:\Users\foste\Documents\projects\azerothcore-wow).
+# The clone: sibling of the harness root (C:\Users\ESTATE_USER\Documents\projects\azerothcore-wow).
 # Upstream renamed azerothcore-wow -> azerothcore-wotlk on GitHub; the old URL 404s.
 ACORE = ROOT.parent / "azerothcore-wow"
 ACORE_UPSTREAM = "https://github.com/azerothcore/azerothcore-wotlk.git"

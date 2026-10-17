@@ -6,7 +6,7 @@ actually answer, how fast, and which are throttled. Tiny calls only (max_tokens=
 import json, os, time, urllib.request, urllib.error
 from pathlib import Path
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 
 # load keys from .env (names only, never printed)
 keys = {}

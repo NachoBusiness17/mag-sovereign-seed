@@ -80,7 +80,7 @@ import os
 import stat
 import sys
 
-ROOT = r"C:\Users\foste\Documents\projects"
+ROOT = r"C:\Users\ESTATE_USER\Documents\projects"
 LSA = os.path.join(ROOT, "local_sovereign_agent")
 OUT = os.path.join(LSA, "catalog", "catalog.jsonl")
 JUNCTIONS_OUT = os.path.join(LSA, "catalog", "junctions.jsonl")

@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 sys.path.insert(0, str(ROOT))
 
 from mag import concurrency_gate as cg  # noqa: E402

@@ -38,7 +38,7 @@ except Exception:
     pass
 
 SCHEMA = "swarm_run.v1"
-KUBECTL = (r"C:\Users\foste\AppData\Local\Programs\DockerDesktop\resources\bin\kubectl.exe",)
+KUBECTL = (r"C:\Users\ESTATE_USER\AppData\Local\Programs\DockerDesktop\resources\bin\kubectl.exe",)
 NS = "mag"
 JOB = "mag-swarm-manual"
 CRONJOB = "mag-swarm"

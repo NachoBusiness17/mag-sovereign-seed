@@ -1,5 +1,5 @@
 CANON — SURVEILLANCE: LET THEM WATCH
-Operator: foste | recorded by: zcode seat (Sancho) | 2026-09-04
+Operator: ESTATE_USER | recorded by: zcode seat (Sancho) | 2026-09-04
 Context: Defender (MsMpEng) spiked to 61% CPU real-time-scanning the fleet's file I/O;
 seat diagnosed it and offered the standard exclusion one-liner. Operator ruled instead.
 

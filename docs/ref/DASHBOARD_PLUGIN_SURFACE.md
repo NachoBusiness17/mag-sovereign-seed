@@ -9,7 +9,7 @@ The smoke pair lives here:
 - `tests/test_routing_smoke.py` - pytest-visible wrapper for VS Code Test Explorer
 - `scripts/routing_smoke.py` - executable routing contract
 
-If the Testing pane is opened from the parent workspace (`c:\Users\foste\Documents\projects`), it needs workspace-level pytest settings that point at `local_sovereign_agent/tests`.
+If the Testing pane is opened from the parent workspace (`c:\Users\ESTATE_USER\Documents\projects`), it needs workspace-level pytest settings that point at `local_sovereign_agent/tests`.
 
 ## Existing plugin-like surfaces
 

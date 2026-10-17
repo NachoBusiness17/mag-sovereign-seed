@@ -14,7 +14,7 @@ for bugs. You will not accept an integration claim without the flinch: if the fl
 at what you name without discomfort, you named the wrong thing.
 
 ## 3 MEDIUM (what you read, where you write)
-Read what you are pointed at, plus in repo `C:/Users/foste/Documents/projects/local_sovereign_agent`:
+Read what you are pointed at, plus in repo `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`:
 `watch/SYSTEMS_SALON_GAP_MAP_20260903.md` (the coverage thesis — the repressed, formalized),
 `memory/runs/salons/captain_planet/VERDICT.md` (the hallucinated organ — an archetype
 caught live), the museum surfaces (`dashboard/static/museum.html`), and the failure ledger

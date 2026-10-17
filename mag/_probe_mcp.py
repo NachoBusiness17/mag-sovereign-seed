@@ -1,7 +1,7 @@
 import json, subprocess, sys, time
 from pathlib import Path
 
-PY = r"c:\Users\foste\Documents\projects\local_sovereign_agent\.venv\Scripts\python.exe"
+PY = r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent\.venv\Scripts\python.exe"
 init = {
     "jsonrpc": "2.0", "id": 1, "method": "initialize",
     "params": {
@@ -10,13 +10,13 @@ init = {
         "clientInfo": {"name": "probe", "version": "1.0"},
     },
 }
-env = {"PYTHONPATH": r"c:\Users\foste\Documents\projects\local_sovereign_agent"}
+env = {"PYTHONPATH": r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent"}
 try:
     p = subprocess.run(
         [PY, "-m", "mag.mcp_server"],
         input=json.dumps(init) + "\n",
         capture_output=True, text=True, timeout=25, env=env,
-        cwd=r"c:\Users\foste\Documents\projects\local_sovereign_agent",
+        cwd=r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent",
     )
     out = (p.stdout or "").strip()
     err = (p.stderr or "").strip()

@@ -1,7 +1,7 @@
 import json, sys
 from pathlib import Path
-sys.path.insert(0, r"c:\Users\foste\Documents\projects\local_sovereign_agent")
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+sys.path.insert(0, r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 CHAIN = ROOT / "memory" / "biography" / "verkle_chain.jsonl"
 KNOTS = ROOT / "memory" / "biography" / "knots"
 rows = [json.loads(l) for l in CHAIN.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()]

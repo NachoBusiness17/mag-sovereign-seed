@@ -47,7 +47,7 @@ POWER_OFF = ROOT / "state" / "mag_power.off"        # present => stack deliberat
 # (the shared /memories/ FS both sessions read via the memory tool). Check both.
 SHELVED_MARKERS = [
     ROOT / "memory" / "repo" / "shelved-autonomous-loop-20260824.md",
-    Path(r"c:\Users\foste\AppData\Roaming\Code\User\workspaceStorage"
+    Path(r"c:\Users\ESTATE_USER\AppData\Roaming\Code\User\workspaceStorage"
          r"\e2b798e7fc103fa17361a909a52c13e5\GitHub.copilot-chat\memory-tool"
          r"\memories\repo\shelved-autonomous-loop-20260824.md"),
 ]

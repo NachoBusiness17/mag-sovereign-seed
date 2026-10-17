@@ -7,7 +7,7 @@ refuse to build**. A huge engine maps onto six slots; the file count is not the 
 
 | | |
 |---|---|
-| Territory | `C:\Users\foste\Documents\projects\azerothcore-wow` (sibling of the harness root) |
+| Territory | `C:\Users\ESTATE_USER\Documents\projects\azerothcore-wow` (sibling of the harness root) |
 | Upstream | `https://github.com/azerothcore/azerothcore-wotlk.git` |
 | **Rename gotcha** | the old `github.com/azerothcore/azerothcore-wow.git` **404s** — this is why the empty stub in the repo (created 2026-09-02) never fetched. Upstream renamed the repo to `azerothcore-wotlk`. |
 | HEAD at clone | `f68a9759bdd11e773876c6bc12fd0c74866422c2` (2026-09-15, shallow, master) |
@@ -148,7 +148,7 @@ fresh extraction the moment the enum parser was fixed, and the test caught it in
 ## 8. Run it
 
 ```bash
-cd C:\Users\foste\Documents\projects\local_sovereign_agent
+cd C:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent
 .venv\Scripts\python.exe -m mag.wow_steal map       # the 15 rows
 .venv\Scripts\python.exe -m mag.wow_steal verify    # byte-verify every citation
 .venv\Scripts\python.exe -m mag.wow_steal receipt   # verify + file the receipt

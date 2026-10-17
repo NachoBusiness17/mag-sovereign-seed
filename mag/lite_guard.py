@@ -38,7 +38,7 @@ DEFAULT_CEILING = 1400   # law 15: 10,000/wk pool paced over 7 days
 # The undocumented monitor endpoints z.ai's own subscription UI calls (door found
 # via openusage's provider notes; verified live with the Lite key same hour — 200
 # OK, billed nothing). Reads need only the key: NO browser, NO Google tap. The
-# Google accounts (nachobusinesscorp@gmail.com / fostertron@gmail.com) are only
+# Google accounts (nachobusinesscorp@gmail.com / ESTATE_USERrtron@gmail.com) are only
 # needed for dashboard WRITES (quota reset button etc).
 _MONITOR_URL = "https://api.z.ai/api/monitor/usage/quota/limit"
 _MODEL_USAGE_URL = "https://api.z.ai/api/monitor/usage/model-usage"

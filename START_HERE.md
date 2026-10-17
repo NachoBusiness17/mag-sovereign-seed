@@ -57,6 +57,13 @@ single model, and you audit a lane before you trust it.
 For a technically-minded friend. After unzipping, from inside the folder:
 
 ```powershell
+# the 30-second version: prove the skeleton is alive first
+pip install -r requirements.txt
+python mag\smoke.py
+# -> ~18 organs tri-stated, a receipt hash, the first law.
+#    no keys, no network, no .env. Then read mag\MANIFEST.md for the map.
+
+# the full evening: the whole system
 python -m venv .venv
 .venv\Scripts\Activate
 pip install -r boot\requirements.txt

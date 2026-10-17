@@ -1,7 +1,7 @@
 import json, sys, hashlib
 from pathlib import Path
-sys.path.insert(0, r"c:\Users\foste\Documents\projects\local_sovereign_agent")
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+sys.path.insert(0, r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 LIVE = ROOT / "memory" / "biography" / "verkle_chain.jsonl"
 
 def sha(p):

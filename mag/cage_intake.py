@@ -8,7 +8,7 @@ seals the hermes steering job receipts (memory/runs/hermes_jobs/*.md) into
 the W0 trajectory tape as per-ractor chains, session ids
 `ractor-<persona>-<filedate>`, via mag/bash_local.py's row builder (schema
 gate + hash chain apply unchanged). READ-LAYER ONLY: it never posts, never
-drives hermes.exe; POSTING stays fostertron-gated per the rotation charter.
+drives hermes.exe; POSTING stays ESTATE_USERrtron-gated per the rotation charter.
 
 bash_local.py is schema v1 today (no `why` field) — the why-string rides in
 the hash-covered `reasoning` field instead. If W0 grows a `why`, this module

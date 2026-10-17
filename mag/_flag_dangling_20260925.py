@@ -22,7 +22,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"C:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 CHAIN = ROOT / "memory" / "biography" / "verkle_chain.jsonl"
 TIP = ROOT / "memory" / "biography" / "verkle_tip.json"
 LOCK = ROOT / "memory" / "biography" / ".verkle.lock"

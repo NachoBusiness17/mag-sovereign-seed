@@ -47,7 +47,7 @@ ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 MAX_CONCURRENT = 8
 _seat_slot = threading.BoundedSemaphore(MAX_CONCURRENT)
 
-# The operator runs TWO OpenRouter accounts (nacho + fostertron/SD) as two pools — each key
+# The operator runs TWO OpenRouter accounts (nacho + ESTATE_USERrtron/SD) as two pools — each key
 # is its own concurrency/free window. Using BOTH (rotating per call) doubles the burn.
 _KEY_ENVS = ("OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2", "OR_API_KEY", "OR_API_KEY_2")
 _key_rotation = 0
@@ -156,7 +156,7 @@ def status() -> dict[str, Any]:
     keys = _load_keys()
     return {"ok": True, "schema": SCHEMA, "model": _load_model(),
             "keys_set": len(keys),
-            "key_accounts": "both (nacho + fostertron/SD), rotating per call" if len(keys) > 1
+            "key_accounts": "both (nacho + ESTATE_USERrtron/SD), rotating per call" if len(keys) > 1
                              else ("one" if keys else "none"),
             "max_concurrent": MAX_CONCURRENT,
             "contract": "chat(system, user, max_tokens, timeout) -> bounded call to the free seat; "
