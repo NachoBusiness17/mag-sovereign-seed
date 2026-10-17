@@ -41,6 +41,7 @@ ORGANS = [
     "config",         # seed stub - swap in your own
     "audit",          # seed stub - your receipt chain
     "verify_tails",   # 5-rule Tails Ledger verifier (separation of powers + anti-collusion)
+    "verify_knot_v2", # stateless v2 binary-tree knot proof + RFC 8032 Ed25519 verifier
 ]
 
 results = []
@@ -73,6 +74,10 @@ if tails_path.exists():
     from mag.verify_tails import verify_ledger
     t_ok, t_msg, _ = verify_ledger(str(tails_path))
     print(f"  tails ledger: {'Supported' if t_ok else 'Disputed'} ({t_msg})")
+
+from mag.verify_knot_v2 import selftest as v2_selftest
+v2_ok = v2_selftest()
+print(f"  bintree v2 verifier: {'Supported (RFC 8032 + EIP-7864 ready)' if v2_ok else 'Disputed'}")
 
 constitution = SEED / "boot" / "CONSTITUTION.md"
 if constitution.exists():

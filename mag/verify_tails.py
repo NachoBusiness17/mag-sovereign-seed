@@ -84,9 +84,43 @@ def mint_genesis_if_missing(path=DEFAULT_LEDGER):
         f.write(json.dumps(row1, separators=(",", ":")) + "\n")
 
 
+def print_row_template(path=DEFAULT_LEDGER):
+    prev_hash = "0" * 64
+    seq = 1
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [ln.strip() for ln in f if ln.strip()]
+            if lines:
+                last = json.loads(lines[-1])
+                prev_hash = last["row_hash"]
+                seq = int(last.get("seq", len(lines))) + 1
+    tpl = {
+        "seq": seq,
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "prev_hash": prev_hash,
+        "author": "community-a:builder-handle",
+        "scorer": "community-b:independent-validator",
+        "payer": "community-c:treasury-or-sponsor",
+        "artifact_uri": "path/or/url/to/reproducible-artifact",
+        "artifact_sha256": "REPLACE_WITH_64_HEX_SHA256_OF_ARTIFACT",
+        "witness_reasons": [
+            "scorer witness 1: independent replay command exited 0 and matched artifact_sha256",
+            "scorer witness 2: falsifier boundary tested on negative fixture and rejected as expected"
+        ],
+        "expected_falsifier": "replay command exits non-zero or output sha256 diverges if artifact is tampered",
+        "settlement_ref": "tx_hash_or_git_commit_ref"
+    }
+    tpl["row_hash"] = canonical_row_hash(tpl)
+    print(json.dumps(tpl, indent=2))
+
+
 if __name__ == "__main__":
+    if "--template" in sys.argv:
+        print_row_template()
+        sys.exit(0)
     if "--mint-row1" in sys.argv:
         mint_genesis_if_missing()
     ok, msg, n = verify_ledger()
     print(f"[verify_tails] {'PASS' if ok else 'FAIL'}: {msg}")
     sys.exit(0 if ok else 1)
+
