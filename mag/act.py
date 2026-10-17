@@ -11,7 +11,11 @@ from typing import Any
 
 from audit import log_event
 from config import ROOT
-from harness.grok_cli import escalate_via_harness, harness_available
+try:
+    from harness.grok_cli import escalate_via_harness, harness_available
+except Exception:
+    def harness_available() -> bool: return False
+    def escalate_via_harness(*args: Any, **kwargs: Any) -> dict[str, Any]: return {"ok": False, "reason": "grok_cli stub"}
 from mag.policy import load_policy, resolve
 
 

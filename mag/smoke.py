@@ -40,6 +40,7 @@ ORGANS = [
     "scale_salon",
     "config",         # seed stub - swap in your own
     "audit",          # seed stub - your receipt chain
+    "verify_tails",   # 5-rule Tails Ledger verifier (separation of powers + anti-collusion)
 ]
 
 results = []
@@ -66,6 +67,12 @@ if manifest.exists():
     print(f"  manifest receipt: sha256:{digest} (tamper-evident chain head)")
 else:
     print("  manifest receipt: Disputed (SEED_MANIFEST.sha256 missing)")
+
+tails_path = SEED / "tails.jsonl"
+if tails_path.exists():
+    from mag.verify_tails import verify_ledger
+    t_ok, t_msg, _ = verify_ledger(str(tails_path))
+    print(f"  tails ledger: {'Supported' if t_ok else 'Disputed'} ({t_msg})")
 
 constitution = SEED / "boot" / "CONSTITUTION.md"
 if constitution.exists():
