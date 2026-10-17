@@ -37,7 +37,7 @@ COMMANDS
                 memory/biography/verkle_chain.jsonl, or in a prior registry
                 row. A tip that exists nowhere = forged lineage = REFUSE.
     FOREIGN     every path-like string in the manifest must live INSIDE our
-                body: the workspace root (C:/Users/foste/Documents/projects)
+                body: the workspace root (C:/Users/ESTATE_USER/Documents/projects)
                 or the memory dir worldline_seed indexes (MEMORY.md's dir).
                 Anything else = FOREIGN flag = REFUSE. The symbiote only
                 points at its own body.

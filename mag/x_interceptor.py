@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-GROK = Path("C:/Users/foste/.grok/bin/grok")
+GROK = Path("C:/Users/ESTATE_USER/.grok/bin/grok")
 LOG = ROOT / "watch" / "x_intercept_log.jsonl"
 BRIEFS = ROOT / "watch" / "x_intercepts"
 ROASTS = ROOT / "memory" / "runs" / "x_shitposter_mining_20260906" / "ROASTS_RAW.md"

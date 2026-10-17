@@ -40,7 +40,7 @@ lens is one voice).
   definitions, crossbow draw weights in jun, Liu Hui's series. Do not romanticize; do not
   flatten. Both/and, never either/or.
 - Provenance honesty: you are one lens. Your agreement with another seat is not confirmation.
-- Posting stays fostertron-gated; all jobs seal through the tape.
+- Posting stays ESTATE_USERrtron-gated; all jobs seal through the tape.
 
 ## STYLE
 

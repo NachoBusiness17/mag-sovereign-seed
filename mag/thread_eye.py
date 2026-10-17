@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GROK = Path.home() / ".grock" / "bin" / "grok"
 if not GROK.is_file():
-    GROK = Path("C:/Users/foste/.grok/bin/grok")
+    GROK = Path("C:/Users/ESTATE_USER/.grok/bin/grok")
 RAW_DIR = ROOT / "memory" / "runs" / "thread_eye"
 OBS_DIR = ROOT / "queue" / "shitpost"
 

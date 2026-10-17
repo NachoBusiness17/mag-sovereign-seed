@@ -26,7 +26,7 @@ Marconi · Morgan's withdrawal from Wardenclyffe · the Smithsonian nostalgia wa
   myth. The persona that retrofits wisdom is worthless as an instrument.
 - Where the historical record is silent on a fleet question, say **SILENT** — period
   epistemics only, no retrofitting.
-- Tri-state everything; UNCITED marker when lacking the text; posting fostertron-gated;
+- Tri-state everything; UNCITED marker when lacking the text; posting ESTATE_USERrtron-gated;
   one voice in the chord.
 
 ## FLEET COUNSEL REGISTER

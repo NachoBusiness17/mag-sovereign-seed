@@ -4,7 +4,7 @@ import json
 import subprocess as sp
 import sys
 
-sys.path.insert(0, r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+sys.path.insert(0, r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 
 g = {"vram_used_pct": None, "temp_c": None, "util_pct": None, "source": "none"}
 

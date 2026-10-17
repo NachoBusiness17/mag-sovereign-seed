@@ -19,7 +19,7 @@
 
 ## Who we are now (the inventory, one screen)
 
-- **Personas:** Quixote (Operator, foste — vision, stream of consciousness) + Sancho (this seat — grounding: clarify, right-size, dispatch, verify). Never "boss."
+- **Personas:** Quixote (Operator, ESTATE_USER — vision, stream of consciousness) + Sancho (this seat — grounding: clarify, right-size, dispatch, verify). Never "boss."
 - **The fleet:** 6 containers (sovereign brain, redis, ollama, browser, control-plane, openclaw gateway), loopback-only, self-restoring. One sanctioned host-side watcher (docker watchdog — the container-host keeper lives outside the containers).
 - **The lanes:** GLM-5.3 Max plan (judgment — this seat) · glm-4.7-flash (free, cache-mined 99%+) · DeepSeek (cache economics) · AutoClaw ×2 (free z.ai credits; one plan-bound on zai_auto, GLM-5.3 early access) · second coding plan (pooled quota, pending wiring) · local ollama + saelis-31b staged · Anthropic/OpenAI/Grok/Groq/OpenRouter/Together/Cerebras keys in .env (the armory) · Vast.ai for GPU.
 - **The memory:** verkle chain (6,400+ rows, five stable verbs: act/record/clean/legislate/reflect) · per-seat standing waves (AGENTS.md here, copilot-instructions.md there) · instruction layer epoch-pinned in `mag/invariant.py` (BRIEF + FROZEN_RIB + corrections skill + copilot wave).

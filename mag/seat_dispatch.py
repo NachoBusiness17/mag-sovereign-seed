@@ -77,7 +77,7 @@ def _extract_zcode(out: str) -> str:
 
 
 # Resolved from the .ps1 shims (openclaw/opencode are node shims, not on PATH as exes):
-_HERMES = Path(r"C:\Users\foste\AppData\Local\hermes\node")
+_HERMES = Path(r"C:\Users\ESTATE_USER\AppData\Local\hermes\node")
 _NODE = _HERMES / "node.exe"
 OPENCLAW_MJS = _HERMES / "node_modules" / "openclaw" / "openclaw.mjs"
 OPENCODE_EXE = _HERMES / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
@@ -128,7 +128,7 @@ HEADLESS: dict[str, dict[str, Any]] = {
         "model": "zai-plan/glm-4.7",
         "cmd": lambda goal, model, tag="": [str(_HERMES / "claude.cmd"), "-p", goal,
                                     "--model", "sonnet", "--max-turns", "12",
-                                    "--add-dir", r"C:\Users\foste\AppData\Local\hermes\hermes-agent",
+                                    "--add-dir", r"C:\Users\ESTATE_USER\AppData\Local\hermes\hermes-agent",
                                     "--dangerously-skip-permissions"],
         "extract": _extract_opencode,
     },

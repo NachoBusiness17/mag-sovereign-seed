@@ -8,7 +8,7 @@ The system should eventually support persistent user-controlled memory; separati
 
 ## Current build
 
-Worktree: `C:\Users\foste\Documents\projects\worktrees\salon-arena-mvp`  
+Worktree: `C:\Users\ESTATE_USER\Documents\projects\worktrees\salon-arena-mvp`  
 Branch: `codex/salon-arena-mvp`
 
 Important files:

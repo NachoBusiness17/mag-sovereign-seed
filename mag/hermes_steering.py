@@ -42,8 +42,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HERMES = Path(os.environ.get("HERMES_EXE", r"C:\Users\foste\AppData\Local\hermes\bin\hermes.exe"))
-HERMES_HOME = Path(os.environ.get("HERMES_HOME", r"C:\Users\foste\AppData\Local\hermes"))
+HERMES = Path(os.environ.get("HERMES_EXE", r"C:\Users\ESTATE_USER\AppData\Local\hermes\bin\hermes.exe"))
+HERMES_HOME = Path(os.environ.get("HERMES_HOME", r"C:\Users\ESTATE_USER\AppData\Local\hermes"))
 LOG = ROOT / "memory" / "runs" / "hermes_dispatch_log.jsonl"
 JOBS = ROOT / "memory" / "runs" / "hermes_jobs"
 PERSONAS_DIR = ROOT / "mag" / "hermes_personas"

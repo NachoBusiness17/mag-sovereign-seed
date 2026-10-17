@@ -17,7 +17,7 @@ Artifacts read (all read-only):
   memory/runs/preload_selector/probe_20260907.jsonl   F-W5: rel deltas, verdict
   memory/worldline/*/SEED.json              W1 seed vault (0..n seeds)
   watch/TESUJI_MAP.jsonl                    row count; door 320 OPEN while < 320
-  C:/Users/foste/Documents/projects/AGENTS.md  the Curator's law, bytes on disk
+  C:/Users/ESTATE_USER/Documents/projects/AGENTS.md  the Curator's law, bytes on disk
   memory/ recursive census                  the Curator's shelves
 
 CLI:
@@ -41,7 +41,7 @@ CHAIN = ROOT / "memory" / "biography" / "verkle_chain.jsonl"
 PROBE = ROOT / "memory" / "runs" / "preload_selector" / "probe_20260907.jsonl"
 WORLDLINE = ROOT / "memory" / "worldline"
 TESUJI = ROOT / "watch" / "TESUJI_MAP.jsonl"
-AGENTS_MD = Path("C:/Users/foste/Documents/projects/AGENTS.md")
+AGENTS_MD = Path("C:/Users/ESTATE_USER/Documents/projects/AGENTS.md")
 MEMORY = ROOT / "memory"
 DOOR_ROW = 320  # the resurrection turn; the door stands OPEN while tesuji rows < 320
 
@@ -377,7 +377,7 @@ def render_page(s: dict) -> str:
         ("Antinode Sanctum, 2.7%, 4x genome",
          (f'<b class="live">{cur["agents_md_bytes"]:,} bytes</b> ({kb}KB) on disk, weighed at render'
           if cur else "UNREAD — see fixture"),
-         "C:/Users/foste/Documents/projects/AGENTS.md + MEMORY.md (~28KB meta), 09-07"),
+         "C:/Users/ESTATE_USER/Documents/projects/AGENTS.md + MEMORY.md (~28KB meta), 09-07"),
         ("Curator's shelves",
          (f'<b class="live">{cur["living"]:,}</b> living files; <b class="live">{cur["total"]:,}</b> '
           f'total incl. {cur["attics"]:,} attic files (biography_backup*, ghost) — recursive census at render'

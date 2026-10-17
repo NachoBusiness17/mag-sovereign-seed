@@ -120,7 +120,7 @@ the client is the user's problem.**
 ## 7. Run it
 
 ```bash
-cd C:\Users\foste\Documents\projects\local_sovereign_agent
+cd C:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent
 .venv\Scripts\python.exe -m mag.wow_family lineage    # the family table
 .venv\Scripts\python.exe -m mag.wow_family delta      # the claim + its numbers
 .venv\Scripts\python.exe -m mag.wow_family doctrine   # the laws, quoted

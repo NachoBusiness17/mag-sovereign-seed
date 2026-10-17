@@ -29,21 +29,21 @@ OUT = ROOT / "memory" / "runs" / "grok_burn"
 
 CORPUS = [
     # the HIVE red-team reply (Desktop)
-    r"C:/Users/foste/Desktop/New folder/HIVE_RESPONSE_TO_RED_TEAM_REPLY_20260820.pdf",
+    r"C:/Users/ESTATE_USER/Desktop/New folder/HIVE_RESPONSE_TO_RED_TEAM_REPLY_20260820.pdf",
     # the writing-craft library (Downloads)
-    r"C:/Users/foste/Downloads/3NovelBlueprint-210917-111553 (1).pdf",
-    r"C:/Users/foste/Downloads/6TwentyStrategiesforYourFirstParagraph-210917-111732.pdf",
-    r"C:/Users/foste/Downloads/8PointofView-210917-111732 (1).pdf",
-    r"C:/Users/foste/Downloads/9CharacterProfile-210917-111732 (1).pdf",
-    r"C:/Users/foste/Downloads/11TwelveWaystoEndaChapter-210917-111732 (1).pdf",
-    r"C:/Users/foste/Downloads/14FiveStorytellingGuideropes-210917-111848 (1).pdf",
-    r"C:/Users/foste/Downloads/15ChapterChecklist-210917-111848 (1).pdf",
-    r"C:/Users/foste/Downloads/17TwoWaystoCreateSuspense-210917-111848 (1).pdf",
-    r"C:/Users/foste/Downloads/19DefeatWritersBlock-210917-111948.pdf",
-    r"C:/Users/foste/Downloads/20EscalateYourPlotinMiddleNovel-210917-111948 (1).pdf",
-    r"C:/Users/foste/Downloads/23PlotBoxes3StoryProgressions-210917-111948 (1).pdf",
-    r"C:/Users/foste/Downloads/30GuideRopesfortheClimax-210917-112055.pdf",
-    r"C:/Users/foste/Downloads/35TypesofEndings-210917-112055 (2).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/3NovelBlueprint-210917-111553 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/6TwentyStrategiesforYourFirstParagraph-210917-111732.pdf",
+    r"C:/Users/ESTATE_USER/Downloads/8PointofView-210917-111732 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/9CharacterProfile-210917-111732 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/11TwelveWaystoEndaChapter-210917-111732 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/14FiveStorytellingGuideropes-210917-111848 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/15ChapterChecklist-210917-111848 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/17TwoWaystoCreateSuspense-210917-111848 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/19DefeatWritersBlock-210917-111948.pdf",
+    r"C:/Users/ESTATE_USER/Downloads/20EscalateYourPlotinMiddleNovel-210917-111948 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/23PlotBoxes3StoryProgressions-210917-111948 (1).pdf",
+    r"C:/Users/ESTATE_USER/Downloads/30GuideRopesfortheClimax-210917-112055.pdf",
+    r"C:/Users/ESTATE_USER/Downloads/35TypesofEndings-210917-112055 (2).pdf",
 ]
 
 

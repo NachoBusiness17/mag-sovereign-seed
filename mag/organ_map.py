@@ -185,7 +185,7 @@ REGISTRY: tuple[dict[str, Any], ...] = (
         "callable": "",
         "source": "deploy/openclaw/openclaw.container.json",
         "wired_by": ["docker-compose.yml", "deploy/openclaw/entrypoint.sh"],
-        "state_paths": [r"C:\Users\foste\.openclaw\openclaw.json"],
+        "state_paths": [r"C:\Users\ESTATE_USER\.openclaw\openclaw.json"],
         "receipt_paths": [],
         "proof": "openclaw_config",
     },
@@ -643,7 +643,7 @@ def _proof(kind: str, *, callable_ok: bool = False) -> tuple[bool, str]:
             return False, str(exc)[:160]
     if kind == "openclaw_config":
         try:
-            host = _path(r"C:\Users\foste\.openclaw\openclaw.json")
+            host = _path(r"C:\Users\ESTATE_USER\.openclaw\openclaw.json")
             json.loads(host.read_text(encoding="utf-8"))
             json.loads((_path("deploy/openclaw/openclaw.container.json")).read_text(encoding="utf-8"))
             return True, "host and container JSON parse"

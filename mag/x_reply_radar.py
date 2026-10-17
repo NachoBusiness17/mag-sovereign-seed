@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GROK = Path.home() / ".grock" / "bin" / "grok"
 if not GROK.is_file():
-    GROK = Path("C:/Users/foste/.grok/bin/grok")
+    GROK = Path("C:/Users/ESTATE_USER/.grok/bin/grok")
 OUT_DIR = ROOT / "memory" / "runs" / "x_reply_radar"
 CARD = ROOT / "watch" / ("X_REPLY_RADAR_" + datetime.now(timezone.utc).strftime("%Y%m%d") + ".md")
 RADAR_JSON = ROOT / "dashboard" / "static" / "x_radar.json"

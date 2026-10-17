@@ -15,7 +15,7 @@ All durable cross-surface work lands on the shared inbox. A VS Code, Cursor, z.c
 |---|---|---|
 | Windows host / Mag venv | `watch\inbox\INDEX.json` | `watch\inbox\` |
 | Docker / OpenClaw | `/board/inbox/INDEX.json` | `/board/inbox/` |
-| WSL | `/mnt/c/Users/foste/Documents/projects/local_sovereign_agent/watch/inbox/INDEX.json` | same directory |
+| WSL | `/mnt/c/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/watch/inbox/INDEX.json` | same directory |
 
 The machine contract is `watch/inbox/SHARED_SURFACE_CONTRACT.json`. Read the index, classify content before reuse, preserve hashes and bounded pointers, and leave a receipt before promotion. Model text can propose; only the switchboard/effect broker authorizes effects. Validate with `.venv\Scripts\python.exe -m mag.shared_surface validate`.
 

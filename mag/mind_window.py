@@ -72,10 +72,10 @@ _IDENTITY_MAP: list[tuple[str, str]] = [
     # the operator's bare name -> role token (withhold the person, keep the role)
     ("nacho", "<operator>"),
     # machine / user
-    ("c:\\users\\foste", "<home>"),
-    ("c:/users/foste", "<home>"),
-    ("/users/foste", "<home>"),
-    ("foste", "<user>"),
+    ("c:\\users\\ESTATE_USER", "<home>"),
+    ("c:/users/ESTATE_USER", "<home>"),
+    ("/users/ESTATE_USER", "<home>"),
+    ("ESTATE_USER", "<user>"),
 ]
 
 # Identity / territory regexes (case-insensitive).

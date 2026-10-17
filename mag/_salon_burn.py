@@ -46,7 +46,7 @@ QUESTIONS = """Answer ALL FOUR, numbered, 3-5 lines each, terse, no preamble:
 
 
 def codex_witness() -> tuple[str, str]:
-    cmd = [r"C:\Users\foste\AppData\Local\hermes\node\codex.cmd", "exec",
+    cmd = [r"C:\Users\ESTATE_USER\AppData\Local\hermes\node\codex.cmd", "exec",
            "-s", "read-only", "-"]
     p = subprocess.run(cmd, input=CONTEXT + "\n\n" + QUESTIONS,
                        capture_output=True, text=True, timeout=900, cwd=str(ROOT))

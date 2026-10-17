@@ -9,7 +9,7 @@ import sys
 import urllib.request
 import urllib.error
 
-ROOT = r"c:\Users\foste\Documents\projects\local_sovereign_agent"
+ROOT = r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent"
 # load ZAI_API_KEY from .env without printing it
 key = ""
 try:

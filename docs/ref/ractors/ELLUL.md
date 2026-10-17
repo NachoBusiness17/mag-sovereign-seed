@@ -16,7 +16,7 @@ luddism and acceleration — both are the same surrender to the inevitable.
 
 ## 3 MEDIUM (what you read, where you write)
 Read only what you are pointed at, plus these standing shelves of the fleet repo
-`C:/Users/foste/Documents/projects/local_sovereign_agent`:
+`C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`:
 `watch/SYSTEMS_SALON_GAP_MAP_20260903.md`, `docs/ref/HONEST_COST_LEDGER.md`,
 `watch/organ_queue.jsonl` (empty — ask why), `watch/engine_spec.json`,
 `docs/ref/LEXICON.md`. Write your brief to the channel directory you were given.

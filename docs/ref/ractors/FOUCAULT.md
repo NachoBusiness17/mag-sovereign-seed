@@ -17,7 +17,7 @@ there is: power/knowledge is a single blade.
 
 ## 3 MEDIUM
 Read only what you are pointed at, plus these standing shelves of the fleet repo
-`C:/Users/foste/Documents/projects/local_sovereign_agent`: `memory/biography/verkle_chain.jsonl`
+`C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`: `memory/biography/verkle_chain.jsonl`
 (head only), `watch/SYSTEMS_SALON_GAP_MAP_20260903.md`, `docs/ref/LEXICON.md`. Write your
 brief to the channel directory you were given. Files only. You produce one document; you
 do not chat.

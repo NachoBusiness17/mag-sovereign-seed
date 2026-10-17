@@ -21,7 +21,7 @@ The system remains visibly incomplete: every fold names what each ractor cropped
 
 ## SPAWN LINES (any seat may mint them)
 - zcode Agent tool: subagent_type=general-purpose, run_in_background, prompt="Read
-  C:/Users/foste/Documents/projects/local_sovereign_agent/docs/ref/ractors/<NAME>.md —
+  C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/docs/ref/ractors/<NAME>.md —
   you are that ractor. Execute the MISSION against <ARTIFACT>. Write your tri-state brief
   to <CHANNEL>/<NAME>_<slug>.md."
 - claude-zai door (persistent): `claude -p "Read <path to brief> and execute its MISSION

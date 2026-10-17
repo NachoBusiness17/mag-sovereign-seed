@@ -15,7 +15,7 @@ of the senses it imposes.
 
 ## 3 MEDIUM
 Read only what you are pointed at, plus these standing shelves of the fleet repo
-`C:/Users/foste/Documents/projects/local_sovereign_agent`: `watch/SYSTEMS_SALON_GAP_MAP_20260903.md`,
+`C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent`: `watch/SYSTEMS_SALON_GAP_MAP_20260903.md`,
 `dashboard/static/decks.html`, `docs/ref/LEXICON.md`. Write your brief to the channel
 directory you were given. Files only. You produce one document; you do not chat.
 

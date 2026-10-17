@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterator
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 
 # The documented concurrency caps (in-flight requests per model). Source: operator pasted
 # from z.ai/manage-apikey/rate-limits, 2026-08-25. Only the models we actually ride.

@@ -3,9 +3,9 @@ The `smoke_harness` is not a single, explicit file but a conceptual domain defin
 
 ## Evidence — what in the repo supports it (file/shape, no invention)
 The string "smoke_harness" appears in:
-- `C:/Users/foste/Documents/projects/local_sovereign_agent/packs/p320_matthew_ds_20260913.json` (multiple entries with `context` fields describing the domain)
-- `C:/Users/foste/Documents/projects/local_sovereign_agent/packs/p160_matthew_20260913.json` (similar `context` fields)
-- `C:/Users/foste/Documents/projects/local_sovereign_agent/packs/gen_matthew_480.py` (line 42: `("smoke_harness", "the headless pre-ship gate: stub fidelity gaps found (measureText, gradients), title-idle phase")`)
+- `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/packs/p320_matthew_ds_20260913.json` (multiple entries with `context` fields describing the domain)
+- `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/packs/p160_matthew_20260913.json` (similar `context` fields)
+- `C:/Users/ESTATE_USER/Documents/projects/local_sovereign_agent/packs/gen_matthew_480.py` (line 42: `("smoke_harness", "the headless pre-ship gate: stub fidelity gaps found (measureText, gradients), title-idle phase")`)
 
 These occurrences describe `smoke_harness` as a "headless pre-ship gate" with specific characteristics like "stub fidelity gaps" and "title-idle phase." The absence of a dedicated `smoke_harness.py` file indicates it's a domain or configuration rather than a physical module.
 

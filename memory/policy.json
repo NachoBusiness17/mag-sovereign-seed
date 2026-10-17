@@ -1,0 +1,32 @@
+{
+  "schema": "policy.v1",
+  "authority_labels": [
+    "operator-authored",
+    "operator-confirmed",
+    "agent-generated",
+    "external-content",
+    "tool-output",
+    "derived-summary",
+    "untrusted-instruction"
+  ],
+  "effects": [
+    "board_write",
+    "verkle_link",
+    "tool_invoke",
+    "model_call",
+    "network_access",
+    "fs_write",
+    "lane_spawn"
+  ],
+  "require_confirmation": [
+    "fs_write",
+    "lane_spawn",
+    "model_call"
+  ],
+  "default_ttl": 900,
+  "default_budget": {
+    "max_calls": 3
+  },
+  "max_board_notes": 1000,
+  "confirmation_ttl": 300
+}

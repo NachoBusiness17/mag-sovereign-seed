@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(r"c:\Users\foste\Documents\projects\local_sovereign_agent")
+ROOT = Path(r"c:\Users\ESTATE_USER\Documents\projects\local_sovereign_agent")
 
 
 def _env() -> None:

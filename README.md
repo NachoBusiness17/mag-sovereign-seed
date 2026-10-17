@@ -35,7 +35,7 @@ If you only read three things in order:
 | Folder | Plain words |
 |---|---|
 | `boot/` | The constitution, the rulebook, and the start commands |
-| `mag/` | The organs: ~190 Python modules that do the seeing, filing, grading, spending |
+| `mag/` | The organs: 1,075 Python files - 16 load-bearing core modules and one honest year of sediment. Start at `mag/MANIFEST.md`, boot with `python mag/smoke.py` |
 | `docs/` | The full manual, written for humans and for AI readers alike |
 | `memory/` | The public part of its memory: the live index and its doctrine ledger |
 | `story/` | Two complete stories with every receipt |

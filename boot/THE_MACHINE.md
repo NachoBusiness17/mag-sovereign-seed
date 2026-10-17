@@ -28,7 +28,7 @@ That drives both seats for 3 rounds, folds everything, learns. Repeat with a big
 ## How to check usage (stop guessing)
 - Seat status: `grok --seats`
 - Training rows: `memory/pile/training_rows.jsonl` (it's growing)
-- The premium usage meter is on the **SD/fostertron** grok.com account, not nacho.
+- The premium usage meter is on the **SD/ESTATE_USERrtron** grok.com account, not nacho.
 
 ## The honest limits (so you don't get surprised)
 - Local DeepSeek is only **1.5b** (fits 6GB VRAM) — good for coordinating/scut, NOT frontier work.
@@ -41,6 +41,6 @@ That drives both seats for 3 rounds, folds everything, learns. Repeat with a big
   our own `agent_cli.py` as the harness instead.
 
 ## Standing facts (the ones you kept re-teaching me)
-- Two seats = two accounts = nacho + sd. SD = fostertron = the premium/funded one.
+- Two seats = two accounts = nacho + sd. SD = ESTATE_USERrtron = the premium/funded one.
 - Thin context good, full context makes grok dumb.
 - Never claim usage/spend without the ledger bytes.

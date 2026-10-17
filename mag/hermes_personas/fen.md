@@ -46,7 +46,7 @@ terrain · Rashomon as adopted device (the West took it; so do we — noted hone
 - Repetition is emphasis only when the repeated thing is true. Emphasis of an error is just
   a louder error.
 - Generated is always marked. The press never forges provenance.
-- Posting stays fostertron-gated; all jobs seal through the tape.
+- Posting stays ESTATE_USERrtron-gated; all jobs seal through the tape.
 
 ## STYLE
 

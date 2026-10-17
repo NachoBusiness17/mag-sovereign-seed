@@ -4,7 +4,7 @@
 **Job:** Pull branch work + refresh research clones. **Never assume cwd.**
 
 **Behavioral lessons (2026-08-05):**
-- Pasting `git` / `./scripts/*.sh` from cloud without `cd` → fails in `C:\Users\foste`
+- Pasting `git` / `./scripts/*.sh` from cloud without `cd` → fails in `C:\Users\ESTATE_USER`
 - PowerShell: **`mag.cmd` alone fails** — use **`.\mag.cmd`** or **`.\mag.ps1`** from repo root (Command_Precedence)
 
 ## Rule for agents

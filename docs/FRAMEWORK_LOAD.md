@@ -61,7 +61,7 @@ label).
 %CD%, %TEMP%, %TEMP%balatro, %TEMP%dee_dig, __pycache__, _archaeology_out, agents,
 android, arsenal_pages, artifacts, attic, audit, audit_bundle, audit_corpus, audit_prep,
 audit_prep_verkle, audit_reports, backend, basecamp, bridge, campaigns, canon, catalog,
-configs, corpus, CUsersfosteAppDataLocalTempfw, CUsersfosteAppDataLocalTempgk_deep,
+configs, corpus, CUsersESTATE_USERAppDataLocalTempfw, CUsersESTATE_USERAppDataLocalTempgk_deep,
 dashboard, dashboard-deploy, deploy, dist_audit, docker, docs, experiments, extensions,
 game_roblox, githooks, handoff, harness, icons, jobs, journal, local_sovereign_agent,
 logs, mag, matthew_export, memories, memory, mine, models, notebooks, outputs, packs,

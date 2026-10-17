@@ -29,8 +29,8 @@ NS = "mag"
 # kubectl is on Docker Desktop's bin (not always on PATH across terminals).
 _KUBECTL_CANDIDATES = [
     os.environ.get("KUBECTL"),
-    r"C:\Users\foste\AppData\Local\Programs\DockerDesktop\resources\bin\kubectl.exe",
-    r"C:\Users\foste\AppData\Local\Microsoft\WinGet\Links\kubectl.exe",
+    r"C:\Users\ESTATE_USER\AppData\Local\Programs\DockerDesktop\resources\bin\kubectl.exe",
+    r"C:\Users\ESTATE_USER\AppData\Local\Microsoft\WinGet\Links\kubectl.exe",
     "kubectl",
 ]
 
